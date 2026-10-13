@@ -1,0 +1,15 @@
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+*.swp
+
+# Capturas de pantalla de prueba
+*.png
+
+# Artefactos de herramientas
+.playwright-mcp/

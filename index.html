@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torn Travel Planner · ¿A qué hora salgo para el restock?</title>
+<meta name="description" content="Calculadora de viajes para Torn City: averigua a qué hora despegar para aterrizar justo cuando la tienda abroad hace restock.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="plane">✈</span> Torn Travel Planner</div>
+  <p class="tagline">¿A qué hora despego para aterrizar justo en el <b>restock</b> del shop?</p>
+</header>
+
+<main>
+
+  <section class="hero card" id="hero"></section>
+
+  <div class="layout">
+
+    <!-- ==================== PARÁMETROS ==================== -->
+    <section class="card">
+      <h2>Parámetros</h2>
+
+      <form id="form" autocomplete="off">
+
+        <fieldset>
+          <legend>Destino y artículo</legend>
+          <div class="row">
+            <label>País (abroad)
+              <select id="country"></select>
+            </label>
+            <label>Artículo
+              <input id="item" list="itemList" placeholder="Shark Fin" spellcheck="false">
+              <datalist id="itemList"></datalist>
+            </label>
+          </div>
+          <p class="hint" id="yataStatus">Comprobando stock de la comunidad…</p>
+          <button type="button" class="ghost" id="yataRefresh">↻ Recargar stock del país</button>
+        </fieldset>
+
+        <fieldset>
+          <legend>Vuelo</legend>
+          <div class="row">
+            <label>Nivel de vuelo
+              <select id="travelTier"></select>
+            </label>
+            <label class="check">
+              <input id="travelBook" type="checkbox">
+              <span>Con travel book</span>
+            </label>
+          </div>
+          <div class="row">
+            <label>Duración del vuelo
+              <input id="flight" placeholder="1h29m" spellcheck="false">
+            </label>
+            <label>Llegar antes del restock (min)
+              <input id="margin" type="number" min="0" max="120" step="1">
+            </label>
+          </div>
+          <p class="hint" id="flightHint"></p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Shop y restock</legend>
+          <div class="row">
+            <label>¿Qué has visto?
+              <select id="anchorMode">
+                <option value="empty">Se ha quedado VACÍA</option>
+                <option value="restock">Ha RESTOCKEADO</option>
+              </select>
+            </label>
+            <label>¿Cuándo?
+              <span class="pair">
+                <input id="anchorDate" type="date">
+                <input id="anchorTime" type="time" step="60">
+              </span>
+            </label>
+          </div>
+          <div class="chips" id="anchorChips">
+            <button type="button" data-ago="0">Ahora</button>
+            <button type="button" data-ago="5">−5m</button>
+            <button type="button" data-ago="15">−15m</button>
+            <button type="button" data-ago="30">−30m</button>
+            <button type="button" data-ago="60">−1h</button>
+          </div>
+          <p class="hint" id="anchorHint"></p>
+
+          <div class="row">
+            <label>Tiempo hasta el restock
+              <input id="restockDelay" placeholder="1h" spellcheck="false">
+            </label>
+            <label class="wide">El stock dura <em>entre</em>
+              <span class="pair">
+                <input id="stockMin" type="number" min="0" max="240" step="1">
+                <span class="sep">y</span>
+                <input id="stockMax" type="number" min="0" max="240" step="1">
+                <span class="sep">min</span>
+              </span>
+            </label>
+          </div>
+          <p class="hint" id="itemDataHint"></p>
+          <div class="chips">
+            <button type="button" class="ghost" id="timingsReset">↺ datos del artículo</button>
+            <button type="button" class="ghost" id="useProjected" hidden>⚡ Usar restock proyectado</button>
+          </div>
+          <p class="hint" id="cycleHint"></p>
+
+          <div class="chips">
+            <button type="button" id="obsSave">📌 Guardar esta observación</button>
+          </div>
+
+          <details class="explain" id="obsBox">
+            <summary>📚 Mis observaciones (aprendizaje)</summary>
+            <p class="hint" id="obsSummary"></p>
+            <div id="obsBody"></div>
+            <div class="chips">
+              <button type="button" class="ghost" id="obsClear">Borrar historial</button>
+            </div>
+          </details>
+
+          <details class="explain" id="importBox">
+            <summary>⬇️ Importar datos de la comunidad (TornW3B)</summary>
+            <p class="hint">
+              Su API está detrás de Cloudflare, así que no se puede leer desde la web. Abre
+              <code>weav3r.dev/travel-stock</code>, en DevTools → Network busca
+              <code>history/batch</code>, copia la respuesta y pégala aquí: la app guarda la
+              cadencia de restock y la duración del stock de cada artículo.
+            </p>
+            <textarea id="importText" rows="4" spellcheck="false" placeholder='{"analyses":{"haw-1485":{"restockCadenceMinutes":60,...}}}'></textarea>
+            <div class="chips">
+              <button type="button" id="importGo">Importar</button>
+              <button type="button" class="ghost" id="importClear">Borrar importado</button>
+            </div>
+            <p class="hint" id="importStatus"></p>
+          </details>
+        </fieldset>
+
+        <fieldset>
+          <legend>Números del viaje</legend>
+          <div class="row">
+            <label>Artículos por viaje (capacidad)
+              <input id="capacity" type="number" min="0" step="1">
+            </label>
+            <label>Coste por artículo (abroad)
+              <input id="buyPrice" type="number" min="0" step="1">
+            </label>
+          </div>
+          <div class="row">
+            <label>Precio de venta en Torn
+              <input id="sellPrice" type="number" min="0" step="1" placeholder="item market / bazaar">
+            </label>
+            <label>Comisión de venta (%)
+              <input id="fee" type="number" min="0" max="100" step="0.1">
+            </label>
+          </div>
+
+          <details class="explain" id="capBox">
+            <summary>🧳 Calculadora de capacidad (según el wiki)</summary>
+            <div class="row">
+              <label>Base: vuelo + facción + maleta
+                <input id="capBase" type="number" min="0" max="200" step="1">
+              </label>
+              <label>Compañía
+                <select id="capCompany">
+                  <option value="none">Ninguna</option>
+                  <option value="f5">Flower Shop / Toy Shop (+5)</option>
+                  <option value="c5">Cruise Line 10★ (+5)</option>
+                  <option value="s2">Lingerie 3★ o Cruise 3★ (+2)</option>
+                </select>
+              </label>
+            </div>
+            <label class="check"><input id="capTourism" type="checkbox"><span>Tourism Day (dobla la capacidad)</span></label>
+            <p class="hint" id="capHint"></p>
+            <div class="chips"><button type="button" id="capUse">Usar este total</button></div>
+          </details>
+        </fieldset>
+
+      </form>
+
+      <details class="explain">
+        <summary>¿Cómo se calcula?</summary>
+        <p>
+          Asumimos que el shop restockea <b>«tiempo hasta el restock»</b> después de quedarse a 0
+          (y, como el stock siempre vuela, el ciclo completo es
+          <code>restock + duración del stock</code>).
+          Para aterrizar justo en el restock:
+        </p>
+        <p class="formula">salida = restock − duración del vuelo − margen</p>
+        <p>
+          Ancla el cálculo justo cuando veas la tienda a 0: es el dato más preciso que existe
+          (el primer restock queda clavado, sin la incertidumbre de cuánto ha durado el stock).
+        </p>
+      </details>
+    </section>
+
+    <!-- ==================== RESULTADOS ==================== -->
+    <section class="card">
+      <h2>Próximos restocks</h2>
+
+      <div class="alarm">
+        <button type="button" id="alarmToggle">🔔 Avisarme antes de la salida</button>
+        <label class="alarm-lead">Avisar
+          <input id="alarmLead" type="number" min="0" max="120" step="1">
+          <span>min antes</span>
+        </label>
+        <span class="hint" id="alarmHint"></span>
+      </div>
+
+      <div id="results" role="status"></div>
+
+      <div class="timeline" id="timeline"></div>
+
+      <h2 class="mt">Números del viaje</h2>
+      <div id="numbers"></div>
+    </section>
+
+  </div>
+
+  <!-- ==================== COMPARADOR ==================== -->
+  <section class="card" id="comparator">
+    <h2>Comparar artículos del país</h2>
+    <p class="hint">
+      Coste real de cada artículo del país (YATA) contra tu precio de venta. Se ordena por
+      <b>beneficio por hueco de carga</b>, que es lo que manda cuando la capacidad es limitada:
+      no importa el artículo más caro, sino el que más rinde por hueco.
+    </p>
+    <div class="chips">
+      <button type="button" id="cmpApi">↻ Valores de mercado (API)</button>
+      <button type="button" id="cmpListings">💵 Precios reales (listados)</button>
+      <button type="button" class="ghost" id="cmpClear">Borrar precios guardados</button>
+    </div>
+    <p class="hint" id="cmpSummary"></p>
+    <div id="cmpBody"></div>
+    <p class="hint">
+      «Stock leído» viene de YATA y puede estar desfasado. Los precios de venta se guardan en
+      este navegador, así que solo hay que teclearlos una vez.
+    </p>
+  </section>
+
+  <!-- ==================== API ==================== -->
+  <details class="card api" id="apiBox">
+    <summary>Opcional · conectar con la API de Torn</summary>
+    <p class="hint">
+      La API de Torn <b>no</b> expone el stock de los shops abroad, así que el restock siempre hay
+      que anclarlo a mano. Lo que sí puede hacer es leer <b>tu vuelo actual</b>
+      (<code>time_left</code>) para decirte si vas a llegar a tiempo, y darte el
+      <b>valor de mercado</b> de un artículo como precio de venta sugerido.
+    </p>
+    <div class="row">
+      <label>API key (deja el scope mínimo: <em>Limited access</em>)
+        <input id="apiKey" type="password" placeholder="pega aquí tu key" spellcheck="false">
+      </label>
+      <label class="check">
+        <input id="apiRemember" type="checkbox">
+        <span>Recordar en este navegador</span>
+      </label>
+    </div>
+    <div class="chips">
+      <button type="button" id="apiTravel">Consultar mi vuelo</button>
+      <button type="button" class="ghost" id="apiPrice">Sugerir precio de venta</button>
+    </div>
+    <p class="hint" id="apiStatus"></p>
+    <p class="warn">
+      ⚠️ La key viaja desde tu navegador directamente a <code>api.torn.com</code> y (si la marcas)
+      se guarda en el <code>localStorage</code> de este sitio. No la uses en un PC compartido ni
+      con una key de acceso completo.
+    </p>
+  </details>
+
+  <footer>
+    <p>
+      Todas las horas son de tu reloj local. ⏱
+      Datos de stock y precios abroad: <a href="https://yata.yt/" target="_blank" rel="noopener">YATA</a>
+      (crowdsourced) · vuelo y precios: <a href="https://api.torn.com" target="_blank" rel="noopener">Torn API</a>
+      · cadencia de restock: <a href="https://weav3r.dev/travel-stock" target="_blank" rel="noopener">TornW3B</a>
+      · capacidades: <a href="https://wiki.torn.com/wiki/Travel" target="_blank" rel="noopener">wiki de Torn</a>.
+    </p>
+    <p>
+      Herramienta de fan sin relación con Torn City. Si mueves los parámetros (tiempo de vuelo,
+      restock, duración del stock) el cálculo sigue valiendo para cualquier destino y artículo.
+    </p>
+  </footer>
+
+</main>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>
