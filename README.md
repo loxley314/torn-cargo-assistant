@@ -25,8 +25,9 @@ GitHub Pages.
 ```
 index.html   interfaz
 styles.css   estilos
-i18n.js      textos ES/EN (añadir idioma = añadir una clave y una opción en el selector)
+i18n.js      textos ES/EN (añadir idioma = añadir una clave y un botón con bandera)
 app.js       lógica (sin dependencias)
+flags/       banderas del selector (SVG, ~0.3-0.5 KB)
 ```
 
 1. **Ancla el shop**: cuando lo veas a **0**, pon qué día y a qué hora lo viste y deja
@@ -89,6 +90,15 @@ te van a pagar, en lugar de la estimación de Torn. La columna **En venta** mues
 disponibles a ese precio: si son menos que tu capacidad, la app lo marca en rojo, porque no
 podrás colocar toda la carga a ese precio.
 
+Con **🏪 Shops de la ciudad (API)** descarga `torn/cityshops` (nivel *Public*) y añade la columna
+**Shop ciudad** con el precio más barato al que ese artículo está en una tienda de Torn. Si sale
+más barato que tu coste abroad, se marca en verde: no tiene sentido volar a por él.
+
+> Sobre los precios de los shops: la API pública devuelve el **stock y el precio de venta** de
+> cada tienda (`inventory` → `price`, `in_stock`), es decir, a cuánto te lo **venden**. No existe
+> una selección que diga **a cuánto te lo compran**, así que la app usa ese dato para comprar
+> barato y revender, no para vender a tienda.
+
 ### Calculadora de capacidad
 
 La capacidad no es fija: depende del nivel de vuelo, la facción, la maleta, el *travel book*,
@@ -148,6 +158,7 @@ Según la tabla oficial de *Access Levels*:
 |---|---|---|
 | `torn/items` → `market_value` | precios de venta del comparador | **Public** |
 | `market/itemmarket` → `listings` | precio real más barato + unidades en venta | **Public** |
+| `torn/cityshops` → `inventory` | a cuánto venden los shops de la ciudad | **Public** |
 | `user/travel` → `time_left` | saber si llegas a tiempo al restock | **Minimal Access** |
 | `user/inventory` | (no se usa) | Limited Access |
 

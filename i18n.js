@@ -2,7 +2,7 @@
 
 /* ============================================================
    Textos de la interfaz. Añadir un idioma = añadir una clave
-   aquí y una opción en el selector del header.
+   aquí y un botón con bandera en el selector del header.
    ============================================================ */
 
 const I18N = {
@@ -98,11 +98,17 @@ const I18N = {
     'cmp.hint': 'Coste real de cada artículo del país (YATA) contra tu precio de venta. Se ordena por <b>beneficio por hueco de carga</b>, que es lo que manda cuando la capacidad es limitada: no importa el artículo más caro, sino el que más rinde por hueco.',
     'cmp.apiBtn': '↻ Valores de mercado (API)',
     'cmp.listingsBtn': '💵 Precios reales (listados)',
+    'cmp.shopsBtn': '🏪 Shops de la ciudad (API)',
+    'cmp.headCityShop': 'Shop ciudad',
+    'cmp.cityShopTitle': '{shop} · {stock} en stock',
+    'cmp.shopsLoading': 'Consultando los shops de la ciudad…',
+    'cmp.shopsUpdated': 'Shops de la ciudad: <b>{n}</b> artículos indexados de {shops} tiendas.',
+    'cmp.shopsError': 'No pude leer los shops: <code>{msg}</code>. Necesitás una API key (nivel Public basta).',
     'cmp.clearBtn': 'Borrar precios guardados',
     'cmp.note': '«Stock leído» viene de YATA y puede estar desfasado. Los precios de venta se guardan en este navegador, así que solo hay que teclearlos una vez.',
 
     'api.title': 'Opcional · conectar con la API de Torn',
-    'api.hint': 'La API de Torn <b>no</b> expone el stock de los shops abroad, así que el restock siempre hay que anclarlo a mano. Lo que sí puede hacer es leer <b>tu vuelo actual</b> (<code>time_left</code>) para decirte si vas a llegar a tiempo, y darte el <b>valor de mercado</b> de un artículo como precio de venta sugerido.',
+    'api.hint': 'La API de Torn <b>no</b> expone el stock de los shops abroad, así que el restock siempre hay que anclarlo a mano. Lo que sí puede hacer es leer <b>tu vuelo actual</b> (<code>time_left</code>) para decirte si vas a llegar a tiempo, darte el <b>valor de mercado</b> de un artículo y mirar los <b>shops de la ciudad</b>.',
     'api.keyLabel': 'API key (deja el scope mínimo: <em>Public</em> o <em>Minimal</em>)',
     'api.remember': 'Recordar en este navegador',
     'api.travelBtn': 'Consultar mi vuelo',
@@ -206,9 +212,6 @@ const I18N = {
     'import.noItems': 'El JSON no traía artículos reconocibles (formato "país-itemId").',
     'import.ok': 'Importados <b>{n}</b> artículos. Ahora la cadencia y el stock salen de esos datos si no tienes medidas propias.',
     'import.cleared': 'Datos importados borrados.',
-
-    'cap.community': 'comunidad: {cadence}{sep}{stock}',
-    'cap.hintLine': '{parts} = <b>{total}</b>{tourism} · Ahora llevas <b>{now}</b>.',
 
     'cmp.noStock': 'Sin stock cargado para este país: usá «Recargar stock del país».',
     'cmp.summaryBest': '<b>{name}</b> en {country}: {perSlot} por hueco, {perTrip} llenando {capacity} huecos.{missing}',
@@ -352,11 +355,17 @@ const I18N = {
     'cmp.hint': 'Real cost of every item in the country (YATA) against your sale price. Sorted by <b>profit per cargo slot</b>, which is what matters when capacity is limited: the most expensive item is not the point, the one that pays best per slot is.',
     'cmp.apiBtn': '↻ Market values (API)',
     'cmp.listingsBtn': '💵 Real prices (listings)',
+    'cmp.shopsBtn': '🏪 City shops (API)',
+    'cmp.headCityShop': 'City shop',
+    'cmp.cityShopTitle': '{shop} · {stock} in stock',
+    'cmp.shopsLoading': 'Checking city shops…',
+    'cmp.shopsUpdated': 'City shops: <b>{n}</b> items indexed from {shops} stores.',
+    'cmp.shopsError': 'Could not read the shops: <code>{msg}</code>. You need an API key (Public level is enough).',
     'cmp.clearBtn': 'Clear saved prices',
     'cmp.note': '«Stock read» comes from YATA and may be stale. Sale prices are stored in this browser, so you only have to type them once.',
 
     'api.title': 'Optional · connect to the Torn API',
-    'api.hint': 'The Torn API does <b>not</b> expose abroad shop stock, so the restock always has to be anchored by hand. What it can do is read <b>your current flight</b> (<code>time_left</code>) to tell you whether you will make it, and give you the <b>market value</b> of an item as a suggested sale price.',
+    'api.hint': 'The Torn API does <b>not</b> expose abroad shop stock, so the restock always has to be anchored by hand. What it can do is read <b>your current flight</b> (<code>time_left</code>) to tell you whether you will make it, give you an item\'s <b>market value</b> and look at the <b>city shops</b>.',
     'api.keyLabel': 'API key (keep the lowest scope: <em>Public</em> or <em>Minimal</em>)',
     'api.remember': 'Remember in this browser',
     'api.travelBtn': 'Check my flight',
@@ -461,8 +470,6 @@ const I18N = {
     'import.ok': 'Imported <b>{n}</b> items. Cadence and stock now come from that data unless you have your own measurements.',
     'import.cleared': 'Imported data cleared.',
 
-    'cap.community': 'community: {cadence}{sep}{stock}',
-
     'cmp.noStock': 'No stock loaded for this country: use «Reload country stock».',
     'cmp.summaryBest': '<b>{name}</b> in {country}: {perSlot} per slot, {perTrip} filling {capacity} slots.{missing}',
     'cmp.missing': ' {n} sale prices missing.',
@@ -555,6 +562,9 @@ function applyStatic(root = document) {
   }
   for (const el of root.querySelectorAll('[data-i18n-title]')) {
     el.title = t(el.dataset.i18nTitle);
+  }
+  for (const el of root.querySelectorAll('[data-i18n-aria]')) {
+    el.setAttribute('aria-label', t(el.dataset.i18nAria));
   }
   document.documentElement.lang = lang;
 }

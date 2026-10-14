@@ -13,10 +13,14 @@
 <header class="topbar">
   <div class="topbar-row">
     <div class="brand"><span class="plane">✈</span> <span data-i18n="app.name">Torn Cargo Assistant</span></div>
-    <select id="lang" class="lang" aria-label="Idioma / Language">
-      <option value="es">ES</option>
-      <option value="en">EN</option>
-    </select>
+    <div class="lang-switch" id="lang" role="group" data-i18n-aria="app.langLabel" aria-label="Idioma / Language">
+      <button type="button" class="lang-btn" data-lang="es" aria-pressed="false">
+        <img src="flags/es.svg" alt="" aria-hidden="true"><span>Español</span>
+      </button>
+      <button type="button" class="lang-btn" data-lang="en" aria-pressed="false">
+        <img src="flags/gb.svg" alt="" aria-hidden="true"><span>English</span>
+      </button>
+    </div>
   </div>
   <p class="tagline" data-i18n-html="app.tagline">¿A qué hora despego para aterrizar justo en el restock del shop?</p>
 </header>
@@ -223,6 +227,7 @@
     <div class="chips">
       <button type="button" id="cmpApi" data-i18n="cmp.apiBtn">↻ Valores de mercado (API)</button>
       <button type="button" id="cmpListings" data-i18n="cmp.listingsBtn">💵 Precios reales (listados)</button>
+      <button type="button" id="cmpShops" data-i18n="cmp.shopsBtn">🏪 Shops de la ciudad (API)</button>
       <button type="button" class="ghost" id="cmpClear" data-i18n="cmp.clearBtn">Borrar precios guardados</button>
     </div>
     <p class="hint" id="cmpSummary"></p>

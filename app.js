@@ -109,6 +109,7 @@ const ITEMDATA_KEY = 'torn-travel-planner:itemdata';
 const REF_KEY = 'torn-travel-planner:refs';
 const ALARM_KEY = 'torn-travel-planner:alarm';
 const MARKETQTY_KEY = 'torn-travel-planner:marketqty';
+const CITYSHOPS_KEY = 'torn-travel-planner:cityshops';
 
 /* capacidad según la tabla del wiki:
    base (vuelo + facción + maleta) + book + compañía; Tourism Day la dobla,
@@ -218,6 +219,7 @@ let observations = [];     // historial de anclas del jugador, para aprender
 let refs = {};             // "país:item" → datos importados de la comunidad
 let lastItemKey = null;    // para no pisar valores al repintar
 let marketQty = {};        // id de artículo → unidades del listado más barato
+let cityShops = { at: 0, byItem: {}, shops: 0 };   // shops de la ciudad: id de artículo → [{shop, price, stock}]
 let capacityTouched = false;
 let alarm = { enabled: false, lead: 10, firedFor: null, ctx: null, titleTimer: null };
 
@@ -1290,6 +1292,52 @@ async function loadListings() {
     : t('cmp.listingsError', { msg: esc(firstError ? firstError.message : t('cmp.noData')) });
 }
 
+/* --------------------- shops de la ciudad (API) --------------------- */
+
+/** los shops de la ciudad dicen qué venden y a qué precio: sirve para no volar si allí es más barato */
+async function fetchCityShops() {
+  const data = await tornJson([
+    (k) => `https://api.torn.com/v2/torn/cityshops?key=${encodeURIComponent(k)}`,
+    (k) => `https://api.torn.com/torn/?selections=cityshops&key=${encodeURIComponent(k)}`,
+  ]);
+  const shops = data?.cityshops || data?.shops || {};
+  const byItem = {};
+  let shopCount = 0;
+
+  for (const shop of Object.values(shops)) {
+    if (!shop || typeof shop !== 'object') continue;
+    shopCount++;
+    for (const [itemId, item] of Object.entries(shop.inventory || {})) {
+      const price = num(item && item.price);
+      if (price == null || price <= 0) continue;
+      (byItem[itemId] = byItem[itemId] || []).push({
+        shop: shop.name || '',
+        price,
+        stock: num(item.in_stock) ?? 0,
+      });
+    }
+  }
+  for (const list of Object.values(byItem)) list.sort((a, b) => a.price - b.price);
+  return { byItem, shops: shopCount, items: Object.keys(byItem).length };
+}
+
+async function cmpLoadShops() {
+  const summary = $('#cmpSummary');
+  summary.textContent = t('cmp.shopsLoading');
+  try {
+    const res = await fetchCityShops();
+    if (!res.items) throw new Error(t('cmp.noData'));
+    cityShops = { at: Date.now(), byItem: res.byItem, shops: res.shops };
+    saveItemState(CITYSHOPS_KEY, cityShops);
+    renderComparator();
+    summary.innerHTML = t('cmp.shopsUpdated', { n: res.items, shops: res.shops });
+  } catch (e) {
+    summary.innerHTML = t('cmp.shopsError', { msg: esc(e.message) });
+  }
+}
+
+const cityShopFor = (id) => (cityShops.byItem[String(id)] || [])[0] || null;
+
 /* --------------------- restock proyectado (importado) --------------------- */
 
 function projectedRestockForCurrent() {
@@ -1329,6 +1377,10 @@ function loadMarket() {
   try {
     marketQty = JSON.parse(localStorage.getItem(MARKETQTY_KEY) || '{}') || {};
   } catch { marketQty = {}; }
+  try {
+    const saved = JSON.parse(localStorage.getItem(CITYSHOPS_KEY) || '{}');
+    if (saved && saved.byItem) cityShops = saved;
+  } catch { cityShops = { at: 0, byItem: {}, shops: 0 }; }
 }
 
 function saveMarket() {
@@ -1411,6 +1463,14 @@ function renderComparator() {
     const qtyCell = qty == null
       ? '<span class="cmp-small">—</span>'
       : `<span class="cmp-small${low ? ' low' : ''}">${esc(t('cmp.units', { n: qty }))}</span>`;
+
+    // shop de la ciudad: si lo vende más barato que tu coste abroad, no merece la pena volar
+    const shop = cityShopFor(r.item.id);
+    const cheaper = shop && r.item.cost > 0 && shop.price < r.item.cost;
+    const shopCell = shop
+      ? `<span class="cmp-small${cheaper ? ' win' : ''}" title="${esc(t('cmp.cityShopTitle', { shop: shop.shop, stock: shop.stock }))}">${esc(fmtMoney(shop.price))}</span>`
+      : '<span class="cmp-small">—</span>';
+
     return `<tr class="${r === best ? 'is-best' : ''}" data-id="${esc(r.item.id)}" data-cost="${esc(r.item.cost)}">
       <td class="cmp-name">${esc(r.item.name)}</td>
       <td>${esc(fmtMoney(r.item.cost))}</td>
@@ -1419,6 +1479,7 @@ function renderComparator() {
       <td data-cell="slot" class="${cls}">${r.perSlot == null ? '—' : esc(fmtMoney(r.perSlot))}</td>
       <td data-cell="trip" class="${cls}">${r.perTrip == null ? '—' : esc(fmtMoney(r.perTrip))}</td>
       <td>${qtyCell}</td>
+      <td>${shopCell}</td>
       <td class="${r.item.quantity ? 'cmp-stock' : 'cmp-stock none'}">${esc(t('cmp.units', { n: r.item.quantity }))}</td>
       <td><button type="button" class="cmp-use" data-id="${esc(r.item.id)}">${t('cmp.useBtn')}</button></td>
     </tr>`;
@@ -1428,7 +1489,7 @@ function renderComparator() {
       <thead><tr>
         <th>${t('cmp.headItem')}</th><th>${t('cmp.headCost')}</th><th>${t('cmp.headSell')}</th>
         <th>${t('cmp.headPerSlot')}</th><th>${t('cmp.headPerTrip')}</th>
-        <th>${t('cmp.headOnSale')}</th><th>${t('cmp.headStockRead')}</th><th></th>
+        <th>${t('cmp.headOnSale')}</th><th>${t('cmp.headCityShop')}</th><th>${t('cmp.headStockRead')}</th><th></th>
       </tr></thead>
       <tbody>${body}</tbody>
     </table></div>`;
@@ -1679,6 +1740,7 @@ function bindEvents() {
       $('#cmpSummary').innerHTML = `Error: <code>${esc(e.message)}</code>`;
     });
   });
+  $('#cmpShops').addEventListener('click', cmpLoadShops);
   $('#cmpClear').addEventListener('click', () => {
     market = {};
     marketQty = {};
@@ -1706,10 +1768,13 @@ function bindEvents() {
   $('#toast').addEventListener('click', () => { $('#toast').hidden = true; });
   $('#useProjected').addEventListener('click', useProjectedRestock);
 
-  $('#lang').addEventListener('change', () => {
+  $('#lang').addEventListener('click', (e) => {
+    const btn = e.target.closest('.lang-btn');
+    if (!btn || btn.dataset.lang === lang) return;
     clearInterval(alarm.titleTimer);      // el parpadeo del aviso no debe pisar el título
     $('#toast').hidden = true;            // el aviso visible estaba en el idioma anterior
-    setLang($('#lang').value);
+    setLang(btn.dataset.lang);
+    renderLangSwitch();
     renderAlarm();
     render();
     renderComparator();
@@ -1747,9 +1812,15 @@ function bindEvents() {
   });
 }
 
+function renderLangSwitch() {
+  for (const btn of $$('#lang .lang-btn')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.lang === lang));
+  }
+}
+
 function init() {
   setLang(detectLang(), { persist: false });
-  $('#lang').value = lang;
+  renderLangSwitch();
 
   $('#country').innerHTML = Object.entries(COUNTRIES)
     .map(([code, name]) => `<option value="${esc(code)}">${esc(name)}</option>`)
