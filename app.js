@@ -55,6 +55,7 @@ const DEFAULTS = {
   capTourism: false,
   alarmLead: 10,
   onlyProfitable: false,
+  customItem: false,        // el artículo lo escribió el usuario a mano, no lo elige del país
 };
 
 const BOOL_FIELDS = ['travelBook', 'capTourism', 'onlyProfitable'];
@@ -215,6 +216,7 @@ let model = null;          // último modelo calculado
 let lastRender = 0;        // ts del último render completo
 let itemIndex = new Map(); // nombre(minúsculas) → { id, name, quantity, cost }
 let buyPriceTouched = false;
+let itemIsCustom = false;  // el artículo lo escribió el usuario: no lo cambiamos al cambiar de país
 let yata = { at: 0, data: null };
 let market = {};           // id de artículo → precio de venta (localStorage)
 let itemData = {};         // "país:item" → { cadence, durMin, durMax } puestos a mano
@@ -302,6 +304,7 @@ function buildModel(f, now) {
       restockHi: hi,
       // margen positivo = aterrizar después del restock; negativo = antes
       departure: addMinutes(lo, margin - flight),
+      landing: addMinutes(lo, margin),          // = departure + vuelo, siempre
       stockEnd: addMinutes(hi, durMax),
       maxWait: (hi.getTime() - lo.getTime()) / MIN,
     });
@@ -338,6 +341,7 @@ function readForm() {
   for (const id of FIELDS) {
     f[id] = BOOL_FIELDS.includes(id) ? $('#' + id).checked : $('#' + id).value;
   }
+  f.customItem = itemIsCustom;
   return f;
 }
 
@@ -385,6 +389,10 @@ function renderHero(m) {
     ? `<div><span class="k">${t('hero.ifLeaveNow')}</span><span class="v">${esc(fmtClock(m.runNow.arrival, m.now))}</span></div>`
     : '';
 
+  const marginCell = Math.abs(m.margin) > 0.5
+    ? `<div><span class="k">${t(m.margin < 0 ? 'hero.waitAtDest' : 'hero.afterRestock')}</span><span class="v">${m.margin > 0 ? '+' : ''}${esc(fmtDuration(Math.abs(m.margin)))}</span></div>`
+    : '';
+
   hero.innerHTML = `
     <div class="hero-main">
       <div class="hero-label">${t('hero.departLabel')}</div>
@@ -395,10 +403,11 @@ function renderHero(m) {
       </div>
     </div>
     <div class="hero-details">
-      <div><span class="k">${t('hero.land')}</span><span class="v">${esc(fmtClock(p.restockLo, m.now))}</span></div>
+      <div><span class="k">${t('hero.land')}</span><span class="v">${esc(fmtClock(p.landing, m.now))}</span></div>
       <div><span class="k">${t('hero.restock')}</span><span class="v">${esc(fmtClock(p.restockLo, m.now))}${p.restockHi.getTime() > p.restockLo.getTime() ? ' – ' + esc(fmtClock(p.restockHi, m.now)) : ''}</span></div>
       <div><span class="k">${t('hero.stockUntil')}</span><span class="v">${esc(fmtClock(p.stockEnd, m.now))}</span></div>
-      <div><span class="k">${t('hero.flightMargin')}</span><span class="v">${esc(fmtDuration(m.flight - m.margin))}</span></div>
+      <div><span class="k">${t('hero.flight')}</span><span class="v">${esc(fmtDuration(m.flight))}</span></div>
+      ${marginCell}
       ${nowCell}
     </div>
     <div class="note">${t('hero.objective', { n: p.n, waitNote })}</div>
@@ -489,17 +498,20 @@ function renderTimeline(m) {
   }
 
   const t0 = Math.min(m.now.getTime(), ...cs.map((c) => c.departure.getTime())) - 5 * MIN;
-  const t1 = Math.max(m.now.getTime() + 60 * MIN, ...cs.map((c) => c.stockEnd.getTime())) + 10 * MIN;
+  const t1 = Math.max(
+    m.now.getTime() + 60 * MIN,
+    ...cs.map((c) => Math.max(c.stockEnd.getTime(), c.landing.getTime())),
+  ) + 10 * MIN;
   const span = t1 - t0;
   const pct = (t) => ((t - t0) / span) * 100;
 
-  const bar = (from, to, cls, tag, minPct = 8) => {
+  const bar = (from, to, cls, tag, title = '') => {
     const l = Math.max(0, pct(from.getTime()));
     const r = Math.min(100, pct(to.getTime()));
     const width = r - l;
     if (width <= 0.05) return '';
-    const label = width >= minPct ? tag : '';
-    return `<div class="tl-bar ${cls}" style="left:${l.toFixed(3)}%;width:${width.toFixed(3)}%">${esc(label)}</div>`;
+    const label = width >= 8 ? tag : '';
+    return `<div class="tl-bar ${cls}" style="left:${l.toFixed(3)}%;width:${width.toFixed(3)}%" title="${esc(title)}">${esc(label)}</div>`;
   };
 
   // pocas etiquetas: como mucho 7 en todo el ancho
@@ -512,14 +524,20 @@ function renderTimeline(m) {
   }
 
   const nowPct = pct(m.now.getTime()).toFixed(3);
-  const rows = cs.map((c) => `<div class="tl-row">
+  const rows = cs.map((c) => {
+    // el vuelo siempre dura lo mismo: con el margen lo que se mueve es la hora de despegue,
+    // y por eso pueden quedar una espera (aterrizo antes) o un solape con el stock (después)
+    const wait = (c.restockLo.getTime() - c.landing.getTime()) / MIN;
+    return `<div class="tl-row">
       <div class="tl-name">V${c.n}</div>
       <div class="tl-track">
         <div class="tl-now" style="left:${nowPct}%"></div>
-        ${bar(c.departure, c.restockLo, 'flight', '✈ ' + fmtDuration((c.restockLo - c.departure) / MIN))}
-        ${bar(c.restockLo, c.stockEnd, 'stock', t('tl.restock'))}
+        ${bar(c.departure, c.landing, 'flight', '✈ ' + fmtDuration(m.flight), t('tl.flightTitle', { d: fmtDuration(m.flight) }))}
+        ${wait > 0.5 ? bar(c.landing, c.restockLo, 'wait', '⏳ ' + fmtDuration(wait), t('tl.waitTitle', { d: fmtDuration(wait) })) : ''}
+        ${bar(c.restockLo, c.stockEnd, 'stock', t('tl.restock'), t('tl.stockTitle', { d: fmtDuration(m.durMax) }))}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   box.innerHTML = `
     <div class="tl-title">${t('tl.title')}</div>
@@ -690,8 +708,6 @@ function renderItemOptions() {
     text.hidden = false;
     return;
   }
-  pick.hidden = false;
-  text.hidden = true;
 
   const current = text.value.trim();
   const norm = current.toLowerCase();
@@ -700,10 +716,11 @@ function renderItemOptions() {
   if (!list.length) list = rows;      // si el filtro vacía la lista, no dejamos el selector muerto
 
   const best = rows.find((r) => r.perSlot != null);
-  const known = list.some((r) => r.item.name.trim().toLowerCase() === norm);
+  const inList = list.some((r) => r.item.name.trim().toLowerCase() === norm);
   const options = [];
 
-  if (current && !known) {
+  // sólo el artículo escrito a mano se mantiene como opción: el de otro país ya no vale
+  if (itemIsCustom && current && !inList) {
     options.push(`<option value="${esc(current)}" selected>${esc(current)}</option>`);
   }
   for (const r of list) {
@@ -714,6 +731,32 @@ function renderItemOptions() {
   }
   options.push(`<option value="__custom__">${esc(t('params.customItem'))}</option>`);
   pick.innerHTML = options.join('');
+
+  pick.hidden = false;
+  text.hidden = !itemIsCustom;   // en modo «a mano» el campo convive con la lista para poder volver
+}
+
+/**
+ * Al cambiar de país el artículo elegido puede no venderse allí. Si lo escribió el usuario lo
+ * respetamos; si venía de la lista, pasamos al que más rinde por hueco en el país nuevo.
+ */
+function ensureItemForCountry() {
+  if (itemIsCustom) return null;
+  const cur = $('#item').value.trim();
+  if (cur && itemIndex.has(cur.toLowerCase())) return null;
+
+  const rows = comparatorRows();
+  if (!rows.length) return null;
+  // el que más rinde por hueco; sin precios de venta todavía, el más caro del país (su bandera)
+  const best = rows.find((r) => r.perSlot != null)
+    || [...rows].sort((a, b) => b.item.cost - a.item.cost)[0];
+
+  $('#item').value = best.item.name;
+  buyPriceTouched = false;
+  applyItemFromIndex();
+  applySalePriceToForm();
+  applyItemTimings({ force: true });
+  return best.item;
 }
 
 /** la lógica de «ha cambiado el artículo», la disparen el desplegable o el campo de texto */
@@ -792,12 +835,16 @@ async function refreshYata(force = false) {
       .map((it) => `<option value="${esc(it.name)}">${esc(fmtMoney(it.cost))}</option>`)
       .join('');
 
+    const swapped = ensureItemForCountry();   // el artículo del país anterior ya no vale aquí
+
     const age = Math.max(0, Math.round((Date.now() - country.update * 1000) / MIN));
     const hit = applyItemFromIndex();
     status.innerHTML = t('yata.loaded', {
       country: esc(COUNTRIES[code] || code), age, count: country.stocks.length,
     }) + (hit ? `<br>${t('yata.item', {
       name: esc(hit.name), qty: hit.quantity, cost: esc(fmtMoney(hit.cost)),
+    })}` : '') + (swapped ? `<br>${t('yata.itemSwitched', {
+      country: esc(COUNTRIES[code] || code), name: esc(swapped.name),
     })}` : '');
 
     // con los ids ya cargados podemos unificar datos guardados por id y aplicar lo que sepamos
@@ -1683,6 +1730,7 @@ function updateCmpRow(input) {
 function useItem(id) {
   const row = comparatorRows().find((r) => String(r.item.id) === String(id));
   if (!row) return;
+  itemIsCustom = false;
   $('#item').value = row.item.name;
   buyPriceTouched = true;
   $('#buyPrice').value = row.item.cost;
@@ -1892,6 +1940,7 @@ function loadSettings() {
     $('#' + id).value = settings[id];
   }
   for (const id of BOOL_FIELDS) $('#' + id).checked = !!settings[id];
+  itemIsCustom = !!settings.customItem;
   if (!$('#alarmLead').value) $('#alarmLead').value = DEFAULTS.alarmLead;
   if (!settings.anchorTime) initAnchor();
   try {
@@ -1958,10 +2007,11 @@ function bindEvents() {
 
   $('#itemPick').addEventListener('change', () => {
     const value = $('#itemPick').value;
-    if (value === '__custom__') {           // escribir un artículo a mano
-      $('#itemPick').hidden = true;
+    itemIsCustom = value === '__custom__';
+    if (itemIsCustom) {                     // escribir un artículo a mano
       $('#item').hidden = false;
       $('#item').focus();
+      renderItemOptions();
       return;
     }
     $('#item').value = value;
@@ -2043,12 +2093,9 @@ function bindEvents() {
     if (!btn || btn.dataset.lang === lang) return;
     clearInterval(alarm.titleTimer);      // el parpadeo del aviso no debe pisar el título
     $('#toast').hidden = true;            // el aviso visible estaba en el idioma anterior
-    setLang(btn.dataset.lang);
-    renderLangSwitch();
-    renderAlarm();
-    render();
-    renderComparator();
+    setLang(btn.dataset.lang);            // dispara «langchange», que repinta todo
   });
+  document.addEventListener('langchange', renderAll);
 
   $('#obsSave').addEventListener('click', saveObservation);
   $('#obsClear').addEventListener('click', clearObservations);
@@ -2086,6 +2133,21 @@ function renderLangSwitch() {
   for (const btn of $$('#lang .lang-btn')) {
     btn.setAttribute('aria-pressed', String(btn.dataset.lang === lang));
   }
+}
+
+/** el idioma afecta a casi todo lo que se genera por JS: repintamos los bloques dinámicos */
+function renderAll() {
+  renderLangSwitch();
+  renderTierSwitch();
+  renderMargin();
+  renderSaleModeSwitch();
+  renderTimingsHint();
+  renderObservations();
+  renderCapacity();
+  renderAlarm();
+  renderProjectedButton();
+  render();
+  renderComparator();
 }
 
 function init() {

@@ -19,12 +19,12 @@ const I18N = {
     'params.onlyProfitable': 'Solo los rentables',
     'params.customItem': '✎ Escribir otro artículo…',
 
-    'yata.checking': 'Comprobando stock de la comunidad…',
     'yata.reload': '↻ Recargar stock del país',
     'yata.loading': 'Cargando stock de la comunidad…',
     'yata.noData': 'YATA no tiene datos de este país.',
     'yata.loaded': 'Stock de <b>{country}</b> vía YATA · última lectura de la comunidad hace <b>{age} min</b> · {count} artículos.',
     'yata.item': '{name}: <b>{qty}</b> uds a {cost}.',
+    'yata.itemSwitched': '🔄 Ese artículo no se vende en {country}: cambiado por <b>{name}</b>, el que más rinde por hueco aquí.',
     'yata.error': 'No pude leer YATA (<code>{msg}</code>). Podés poner el coste a mano.',
 
     'flight.title': 'Vuelo',
@@ -141,7 +141,9 @@ const I18N = {
     'hero.land': 'Aterrizas',
     'hero.restock': 'Restock',
     'hero.stockUntil': 'Stock hasta',
-    'hero.flightMargin': 'Vuelo + margen',
+    'hero.flight': 'Vuelo',
+    'hero.waitAtDest': 'Espera en destino',
+    'hero.afterRestock': 'Llegada tras el restock',
     'hero.ifLeaveNow': 'Si salís ya',
     'hero.objective': '🎯 Objetivo: ciclo <b>V{n}</b>, {waitNote}.',
     'hero.waitRange': 'llegando al restock más temprano esperarías hasta <b>{d}</b> si tarda en caer',
@@ -165,7 +167,10 @@ const I18N = {
 
     'tl.title': 'Línea de tiempo',
     'tl.restock': 'restock',
-    'tl.legend': 'Azul = vuelo · Ámbar = stock disponible estimado · Rojo = ahora.',
+    'tl.flightTitle': 'Vuelo de {d}, siempre dura lo mismo',
+    'tl.waitTitle': 'Espera en el destino: {d}',
+    'tl.stockTitle': 'El stock aguanta {d} como máximo',
+    'tl.legend': 'Azul = vuelo (duración fija) · Gris = espera en el destino · Ámbar = stock disponible estimado · Rojo = ahora.',
 
     'num.complete': 'Completá los parámetros.',
     'num.capacity': 'Capacidad',
@@ -288,12 +293,12 @@ const I18N = {
     'params.onlyProfitable': 'Only profitable ones',
     'params.customItem': '✎ Type another item…',
 
-    'yata.checking': 'Checking community stock…',
     'yata.reload': '↻ Reload country stock',
     'yata.loading': 'Loading community stock…',
     'yata.noData': 'YATA has no data for this country.',
     'yata.loaded': '<b>{country}</b> stock via YATA · last community reading <b>{age} min</b> ago · {count} items.',
     'yata.item': '{name}: <b>{qty}</b> units at {cost}.',
+    'yata.itemSwitched': '🔄 That item is not sold in {country}: switched to <b>{name}</b>, the best per slot here.',
     'yata.error': 'Could not read YATA (<code>{msg}</code>). You can type the cost by hand.',
 
     'flight.title': 'Flight',
@@ -410,7 +415,9 @@ const I18N = {
     'hero.land': 'You land',
     'hero.restock': 'Restock',
     'hero.stockUntil': 'Stock until',
-    'hero.flightMargin': 'Flight + margin',
+    'hero.flight': 'Flight',
+    'hero.waitAtDest': 'Wait at destination',
+    'hero.afterRestock': 'Landing after the restock',
     'hero.ifLeaveNow': 'If you leave now',
     'hero.objective': '🎯 Target: cycle <b>V{n}</b>, {waitNote}.',
     'hero.waitRange': 'arriving at the earliest restock you may wait up to <b>{d}</b> if it takes a while',
@@ -434,7 +441,10 @@ const I18N = {
 
     'tl.title': 'Timeline',
     'tl.restock': 'restock',
-    'tl.legend': 'Blue = flight · Amber = estimated stock available · Red = now.',
+    'tl.flightTitle': 'Flight of {d}, always the same length',
+    'tl.waitTitle': 'Waiting at the destination: {d}',
+    'tl.stockTitle': 'Stock lasts {d} at most',
+    'tl.legend': 'Blue = flight (fixed length) · Grey = waiting at the destination · Amber = estimated stock available · Red = now.',
 
     'num.complete': 'Fill in the settings.',
     'num.capacity': 'Capacity',
@@ -601,4 +611,6 @@ function setLang(next, { persist = true } = {}) {
   }
   document.title = t('app.title');
   applyStatic();
+  // avisa a app.js: hay mucho contenido que se pinta por JS y también debe cambiar
+  document.dispatchEvent(new CustomEvent('langchange', { detail: next }));
 }

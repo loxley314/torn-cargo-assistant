@@ -33,7 +33,9 @@ flags/       banderas del selector (SVG, ~0.3-0.5 KB)
 1. **Elige destino y artículo** en los desplegables. La lista de artículos es la del país
    (YATA), con el coste o el beneficio por hueco al lado y un ★ en el mejor. Con **«Solo los
    rentables»** se ocultan los que no dan beneficio con el precio de venta que tengas puesto, y
-   con *✎ Escribir otro artículo…* puedes teclear uno a mano.
+   con *✎ Escribir otro artículo…* puedes teclear uno a mano (y volver a la lista cuando
+   quieras). **Al cambiar de país**, si el artículo elegido no se vende allí se cambia solo por
+   el que más rinde por hueco y te avisa con un 🔄; si lo escribiste a mano, se respeta.
 2. **Ancla el shop**: cuando lo veas a **0**, pon qué día y a qué hora lo viste y deja
    *«Se ha quedado VACÍA»*. Es el dato más preciso que existe (el primer restock queda
    clavado, sin la incertidumbre de cuánto duró el stock).
@@ -142,7 +144,14 @@ ciclo     = cadencia del artículo + duración del stock
 ```
 
 El **margen** es positivo para aterrizar *después* del restock y negativo para aterrizar
-*antes* (0 = justo en el restock).
+*antes* (0 = justo en el restock). El vuelo **siempre dura lo mismo**: lo único que mueve el
+margen es la **hora de despegue**, así que lo que aparece entre el vuelo y el stock es una
+**espera** en el destino (margen negativo) o un **solape** con el stock ya rellenado (positivo).
+La línea de tiempo lo pinta en dos carriles —vuelo arriba, espera + stock abajo— para que se
+vea el hueco o el solape en lugar de quedar las dos barras pegadas.
+
+La hora de **aterrizaje** del hero es la real (`salida + vuelo`), no la del restock: con un
+margen de +15 min verás que aterrizas 15 min después de que el shop se rellene.
 
 La cadencia y la duración son **por artículo** (no globales): Shark Fin restockea a los 60 min
 y aguanta ~10 min, pero Xanax tarda 120 min y otros artículos 15 o 180. Si tienes medidas
