@@ -46,7 +46,7 @@ const DEFAULTS = {
   restockDelay: '1h',
   stockMin: 10,
   stockMax: 20,
-  capacity: 10,
+  capacity: 28,
   buyPrice: 20603,
   sellPrice: '',
   fee: 0,
