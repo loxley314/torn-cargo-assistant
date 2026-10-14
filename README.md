@@ -87,9 +87,10 @@ Coste real de cada artículo del país (YATA) contra tu precio de venta, ordenad
 **beneficio por hueco de carga** — que es lo que manda cuando la capacidad es limitada: no
 importa el artículo más caro, sino el que más rinde por hueco. Los precios de venta se guardan
 en el navegador, así que solo se teclean una vez, y con la API key se pueden rellenar todos de
-golpe desde `market_value`. El botón **usar** carga ese artículo en el cálculo de arriba.
+golpe desde `value.market_price` y `value.sell_price`. El botón **usar** carga ese artículo en
+el cálculo de arriba.
 
-Con **💵 Precios reales (listados)** la app consulta `market/itemmarket` (nivel *Public*)
+Con **💵 Precios reales (listados)** la app consulta `market/{id}/itemmarket` (nivel *Public*)
 artículo por artículo y usa **el precio más barato que hay a la venta**, que es lo que de verdad
 te van a pagar, en lugar de la estimación de Torn. La columna **En venta** muestra las unidades
 disponibles a ese precio: si son menos que tu capacidad, la app lo marca en rojo, porque no
@@ -99,10 +100,15 @@ Con **🏪 Shops de la ciudad (API)** descarga `torn/cityshops` (nivel *Public*)
 **Shop ciudad** con el precio más barato al que ese artículo está en una tienda de Torn. Si sale
 más barato que tu coste abroad, se marca en verde: no tiene sentido volar a por él.
 
-> Sobre los precios de los shops: la API pública devuelve el **stock y el precio de venta** de
-> cada tienda (`inventory` → `price`, `in_stock`), es decir, a cuánto te lo **venden**. No existe
-> una selección que diga **a cuánto te lo compran**, así que la app usa ese dato para comprar
-> barato y revender, no para vender a tienda.
+### Vender en el mercado o en un shop
+
+El conmutador **«Dónde vender»** decide qué precio manda en todo el cálculo:
+
+- **Mercado**: el precio del item market (a mano, con `market_value`/`market_price` o con los
+  listados reales). Puede tardar en venderse.
+- **Shop**: lo que te **paga directamente una tienda** (`value.sell_price`), cobro inmediato y
+  sin listar nada. La columna **Venta a shop** muestra ese precio con el nombre de la tienda, y
+  se pone en verde cuando paga más que el mercado — que pasa a menudo.
 
 ### Calculadora de capacidad
 
@@ -153,8 +159,9 @@ salir ahora también podía servir (*«Si salís ahora aterrizás 16:13, 6m desp
   `$20,603`). Es **crowdsourced y cacheado**: se actualiza cuando algún cliente verificado
   publica una lectura, así que puede llevar unos minutos de retraso.
 - **Vuelo y precios de venta: [Torn API](https://www.torn.com/preferences.php#tab=api)**,
-  opcional. Lee tu `time_left` actual para decirte si vas a llegar a tiempo, y el
-  `market_value` de todos los artículos para ordenar el comparador.
+  opcional. Lee tu `time_left` actual para decirte si vas a llegar a tiempo, el
+  `value.market_price` de todos los artículos para ordenar el comparador, y el precio real más
+  barato de cada mercado.
 - **Cadencia de restock: [TornW3B](https://weav3r.dev/travel-stock)**, importable a mano (ver
   arriba). Su API no se puede consultar desde el navegador.
 
@@ -164,17 +171,19 @@ Según la tabla oficial de *Access Levels*:
 
 | Selección | Para qué | Nivel |
 |---|---|---|
-| `torn/items` → `market_value` | precios de venta del comparador | **Public** |
-| `market/{id}/itemmarket` → `cost`, `quantity` | precio real más barato + unidades en venta | **Public** |
-| `torn/cityshops` → `inventory` | a cuánto venden los shops de la ciudad | **Public** |
+| `torn/items` → `value.market_price`, `value.sell_price` | precios de mercado y a tienda de todos los artículos | **Public** |
+| `market/{id}/itemmarket` → `listings[].price`, `listings[].amount` | precio real más barato + unidades en venta | **Public** |
+| `torn/cityshops` → `shops.<id>.items[].price`, `.stock.current` | a cuánto venden los shops de la ciudad | **Public** |
 | `user/travel` → `time_left` | saber si llegas a tiempo al restock | **Minimal Access** |
 | `user/inventory` | (no se usa) | Limited Access |
 
-Notas de implementación, porque los nombres de los campos no son estables entre versiones:
-el listado del item market se lee de **`cost`** (no `price`), y el valor de mercado se busca en
-`market_value`, `marketValue`, `value.market_price` y `value.buy_price`, indicando en el
-mensaje cuál se usó. Si la respuesta no trae ninguno, el aviso incluye las **claves que sí
-llegaron** para poder ajustarlo sin tener que compartir la key.
+Notas de implementación, porque los nombres de los campos no coinciden con la documentación de
+la comunidad: en **v2** el valor de mercado es **`value.market_price`** (no `market_value`), el
+precio que te **paga** una tienda es **`value.sell_price`** (con el desglose en `value.shops`),
+los listados del item market usan **`price`/`amount`** (no `cost`/`quantity`) y las city shops
+exponen un array **`items[]`** (no `inventory`). El lector es tolerante: si no encuentra el
+campo, prueba alternativas y, si tampoco, el aviso incluye las **claves que sí llegaron** para
+poder ajustarlo sin tener que compartir la key.
 
 Con una key **Public** (la que se genera por defecto) ya funcionan los precios; para el vuelo
 hace falta **Minimal**. No hay nada hardcodeado: la key la pegas tú y se guarda en el

@@ -809,6 +809,36 @@ table.cmp tr.is-best td { background: rgba(70, 194, 111, .07); }
 
 .margin-box .chips { justify-content: center; margin-bottom: 0; }
 
+/* ---------- modo de venta ---------- */
+
+.sale-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+.sale-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.sale-row .tier-switch { flex: 0 0 auto; }
+.sale-row .tier-btn { flex: 0 0 auto; padding: 5px 12px; }
+
+.cmp-small small {
+  color: var(--muted);
+  font-size: 10px;
+  display: inline-block;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 /* ---------- api / footer ---------- */
 
 .api { background: var(--bg-2); }

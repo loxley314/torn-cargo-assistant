@@ -110,6 +110,8 @@ const ITEMDATA_KEY = 'torn-travel-planner:itemdata';
 const REF_KEY = 'torn-travel-planner:refs';
 const ALARM_KEY = 'torn-travel-planner:alarm';
 const MARKETQTY_KEY = 'torn-travel-planner:marketqty';
+const SHOPPRICES_KEY = 'torn-travel-planner:shopprices';
+const SALEMODE_KEY = 'torn-travel-planner:salemode';
 const CITYSHOPS_KEY = 'torn-travel-planner:cityshops';
 
 /* capacidad según la tabla del wiki:
@@ -221,6 +223,8 @@ let refs = {};             // "país:item" → datos importados de la comunidad
 let lastItemKey = null;    // para no pisar valores al repintar
 let marketQty = {};        // id de artículo → unidades del listado más barato
 let cityShops = { at: 0, byItem: {}, shops: 0 };   // shops de la ciudad: id de artículo → [{shop, price, stock}]
+let shopPrices = {};       // id de artículo → { sell, buy, shop } (lo que te paga un shop)
+let saleMode = 'market';   // 'market' = item market · 'shop' = vender al shop
 let capacityTouched = false;
 let alarm = { enabled: false, lead: 10, firedFor: null, ctx: null, titleTimer: null };
 
@@ -716,9 +720,24 @@ function renderItemOptions() {
 function onItemChanged() {
   buyPriceTouched = false;
   applyItemFromIndex();
-  applyMarketPriceToForm();
+  applySalePriceToForm();
   applyItemTimings();
   render();
+}
+
+function renderSaleModeSwitch() {
+  const box = $('#saleModeSwitch');
+  box.innerHTML = ['market', 'shop'].map((mode) => `<button type="button" class="tier-btn" role="radio"
+    data-mode="${mode}" aria-checked="${mode === saleMode}">${esc(t(mode === 'market' ? 'cmp.saleMarket' : 'cmp.saleShop'))}</button>`).join('');
+}
+
+/** precio de venta del formulario, según el modo */
+function applySalePriceToForm() {
+  const id = currentItemId();
+  if (id) {
+    const price = salePrice(id);
+    if (price != null) $('#sellPrice').value = price;
+  }
 }
 
 /* ---------------------------- tick (1 Hz) ---------------------------- */
@@ -1348,12 +1367,13 @@ async function fetchItemMarket(id) {
   ]);
   const block = data?.itemmarket;
   const listings = (block && (Array.isArray(block) ? block : block.listings)) || data?.listings || [];
-  const priceOf = (l) => num(l && (l.cost ?? l.price));
+  const priceOf = (l) => num(l && (l.price ?? l.cost));
+  const qtyOf = (l) => num(l && (l.quantity ?? l.amount));
   const prices = listings.map(priceOf).filter((v) => v != null && v > 0);
   if (!prices.length) return null;
   const lowest = Math.min(...prices);
   const cheapest = listings.find((l) => priceOf(l) === lowest);
-  return { lowest, qty: num(cheapest && cheapest.quantity), count: listings.length };
+  return { lowest, qty: qtyOf(cheapest), count: listings.length };
 }
 
 async function loadListings() {
@@ -1408,13 +1428,17 @@ async function fetchCityShops() {
   for (const shop of Object.values(shops)) {
     if (!shop || typeof shop !== 'object') continue;
     shopCount++;
-    for (const [itemId, item] of Object.entries(shop.inventory || {})) {
+    // v2: items es un array con { id, name, price, stock: { current, default } }
+    const items = Array.isArray(shop.items) ? shop.items : Object.entries(shop.inventory || {}).map(([id, it]) => ({ id, ...it }));
+    for (const item of items) {
+      const id = item && item.id;
       const price = num(item && item.price);
-      if (price == null || price <= 0) continue;
-      (byItem[itemId] = byItem[itemId] || []).push({
+      if (id == null || price == null || price <= 0) continue;
+      const stock = item.stock && typeof item.stock === 'object' ? num(item.stock.current) : num(item.stock);
+      (byItem[id] = byItem[id] || []).push({
         shop: shop.name || '',
         price,
-        stock: num(item.in_stock) ?? 0,
+        stock: stock ?? 0,
       });
     }
   }
@@ -1482,6 +1506,13 @@ function loadMarket() {
     const saved = JSON.parse(localStorage.getItem(CITYSHOPS_KEY) || '{}');
     if (saved && saved.byItem) cityShops = saved;
   } catch { cityShops = { at: 0, byItem: {}, shops: 0 }; }
+  try {
+    shopPrices = JSON.parse(localStorage.getItem(SHOPPRICES_KEY) || '{}') || {};
+  } catch { shopPrices = {}; }
+  try {
+    const saved = localStorage.getItem(SALEMODE_KEY);
+    if (saved === 'market' || saved === 'shop') saleMode = saved;
+  } catch { /* ignorar */ }
 }
 
 function saveMarket() {
@@ -1495,19 +1526,25 @@ function currentItemId() {
   return hit ? String(hit.id) : null;
 }
 
-/** el precio de venta del formulario es siempre el del artículo seleccionado */
-function applyMarketPriceToForm() {
-  const id = currentItemId();
-  if (id) $('#sellPrice').value = market[id] == null ? '' : market[id];
-}
-
+/** el precio de venta del formulario es el del artículo seleccionado, según el modo */
 function syncSellPriceToMarket() {
+  if (saleMode !== 'market') return;      // en modo shop el precio lo pone el juego
   const id = currentItemId();
   const value = num($('#sellPrice').value);
   if (id && value != null && value > 0) {
     market[id] = value;
     saveMarket();
   }
+}
+
+/** precio de venta según el modo elegido: item market o lo que te paga un shop */
+function salePrice(id) {
+  const key = String(id);
+  if (saleMode === 'shop') {
+    const shop = shopPrices[key];
+    return shop && shop.sell != null ? shop.sell : null;
+  }
+  return num(market[key]);
 }
 
 function comparatorRows() {
@@ -1519,10 +1556,18 @@ function comparatorRows() {
 
   return country.stocks
     .map((item) => {
-      const price = num(market[String(item.id)]);
+      const id = String(item.id);
+      const price = salePrice(id);
       const net = price == null ? null : price * (1 - fee / 100);
       const perSlot = net == null ? null : net - item.cost;
-      return { item, price, perSlot, perTrip: perSlot == null ? null : perSlot * capacity };
+      return {
+        item,
+        price,
+        perSlot,
+        perTrip: perSlot == null ? null : perSlot * capacity,
+        marketPrice: num(market[id]),
+        shop: shopPrices[id] || null,
+      };
     })
     .sort((a, b) => {
       if (a.perSlot == null && b.perSlot == null) return a.item.name.localeCompare(b.item.name);
@@ -1572,13 +1617,26 @@ function renderComparator() {
       ? `<span class="cmp-small${cheaper ? ' win' : ''}" title="${esc(t('cmp.cityShopTitle', { shop: shop.shop, stock: shop.stock }))}">${esc(fmtMoney(shop.price))}</span>`
       : '<span class="cmp-small">—</span>';
 
+    // lo que te paga un shop por este artículo (venta directa, sin listarlo)
+    const pays = r.shop && r.shop.sell != null ? r.shop.sell : null;
+    const paysBetter = pays != null && r.marketPrice != null && pays > r.marketPrice;
+    const paysCell = pays == null
+      ? '<span class="cmp-small">—</span>'
+      : `<span class="cmp-small${paysBetter ? ' win' : ''}" title="${esc(t('cmp.shopPays', { shop: r.shop.shop, price: fmtMoney(pays) }))}">${esc(fmtMoney(pays))}${r.shop.shop ? ` <small>${esc(r.shop.shop)}</small>` : ''}</span>`;
+
+    // en modo shop el precio no es editable: lo pone el juego
+    const sellCell = saleMode === 'shop'
+      ? `<span class="cmp-small">${r.price == null ? '—' : esc(fmtMoney(r.price))}</span>`
+      : `<input class="cmp-price" type="number" min="0" step="1" data-id="${esc(r.item.id)}"
+                 value="${r.marketPrice == null ? '' : esc(r.marketPrice)}" placeholder="—">`;
+
     return `<tr class="${r === best ? 'is-best' : ''}" data-id="${esc(r.item.id)}" data-cost="${esc(r.item.cost)}">
       <td class="cmp-name">${esc(r.item.name)}</td>
       <td>${esc(fmtMoney(r.item.cost))}</td>
-      <td><input class="cmp-price" type="number" min="0" step="1" data-id="${esc(r.item.id)}"
-                 value="${r.price == null ? '' : esc(r.price)}" placeholder="—"></td>
+      <td>${sellCell}</td>
       <td data-cell="slot" class="${cls}">${r.perSlot == null ? '—' : esc(fmtMoney(r.perSlot))}</td>
       <td data-cell="trip" class="${cls}">${r.perTrip == null ? '—' : esc(fmtMoney(r.perTrip))}</td>
+      <td>${paysCell}</td>
       <td>${qtyCell}</td>
       <td>${shopCell}</td>
       <td class="${r.item.quantity ? 'cmp-stock' : 'cmp-stock none'}">${esc(t('cmp.units', { n: r.item.quantity }))}</td>
@@ -1590,10 +1648,13 @@ function renderComparator() {
       <thead><tr>
         <th>${t('cmp.headItem')}</th><th>${t('cmp.headCost')}</th><th>${t('cmp.headSell')}</th>
         <th>${t('cmp.headPerSlot')}</th><th>${t('cmp.headPerTrip')}</th>
-        <th>${t('cmp.headOnSale')}</th><th>${t('cmp.headCityShop')}</th><th>${t('cmp.headStockRead')}</th><th></th>
+        <th>${t('cmp.headShopSell')}</th><th>${t('cmp.headOnSale')}</th>
+        <th>${t('cmp.headCityShop')}</th><th>${t('cmp.headStockRead')}</th><th></th>
       </tr></thead>
       <tbody>${body}</tbody>
     </table></div>`;
+
+  renderSaleModeSwitch();
 }
 
 /** mientras se teclea no reordenamos (perdería el foco): solo recalculamos esa fila */
@@ -1631,14 +1692,14 @@ function useItem(id) {
   render();
 }
 
-/** el valor de mercado ha aparecido con varios nombres según la versión: los probamos todos */
+/** el valor de mercado y los precios de shop vienen dentro de `value` en la v2 */
 function extractMarketValue(item) {
   if (!item || typeof item !== 'object') return null;
   const nested = item.value || {};
   const candidates = [
-    ['market_value', item.market_value],
+    ['value.market_price', nested.market_price],   // v2 (comprobado)
+    ['market_value', item.market_value],           // v1
     ['marketValue', item.marketValue],
-    ['value.market_price', nested.market_price],
     ['value.market_value', nested.market_value],
     ['buy_price', item.buy_price],
     ['value.buy_price', nested.buy_price],
@@ -1648,6 +1709,20 @@ function extractMarketValue(item) {
     if (value != null && value > 0) return { value, field };
   }
   return null;
+}
+
+/** lo que un shop te paga por el artículo, y en cuál */
+function extractShopPrice(item) {
+  const nested = (item && item.value) || {};
+  const sell = num(nested.sell_price);
+  if (sell == null || sell <= 0) return null;
+  const shops = Array.isArray(nested.shops) ? nested.shops : [];
+  const best = shops.slice().sort((a, b) => (num(b.sell_price) ?? 0) - (num(a.sell_price) ?? 0))[0];
+  return {
+    sell,
+    buy: num(nested.buy_price),
+    shop: (best && best.shop) || (nested.vendor && nested.vendor.name) || '',
+  };
 }
 
 /** diagnóstico sin exponer la key: qué claves trajo la respuesta */
@@ -1667,27 +1742,35 @@ async function loadMarketPrices() {
     (k) => `https://api.torn.com/torn/?selections=items&key=${encodeURIComponent(k)}`,
   ]);
 
-  // v2 puede devolver lista u objeto indexado por id
+  // v2 devuelve una lista; v1 un objeto indexado por id
   const entries = Array.isArray(data.items)
     ? data.items.map((item) => [String(item.id), item])
     : Object.entries(data.items || {});
 
   let count = 0;
+  let shopCount = 0;
   let field = null;
   for (const [key, item] of entries) {
+    const id = String((item && item.id) ?? key);
     const found = extractMarketValue(item);
-    if (!found) continue;
-    market[String((item && item.id) ?? key)] = found.value;
-    field = field || found.field;
-    count++;
+    if (found) {
+      market[id] = found.value;
+      field = field || found.field;
+      count++;
+    }
+    const shop = extractShopPrice(item);
+    if (shop) {
+      shopPrices[id] = shop;
+      shopCount++;
+    }
   }
 
-  if (!count) {
-    const shape = describeShape(data);
-    throw new Error(t('torn.noMarketValue', shape));
+  if (!count && !shopCount) {
+    throw new Error(t('torn.noMarketValue', describeShape(data)));
   }
   saveMarket();
-  return { count, field };
+  saveItemState(SHOPPRICES_KEY, shopPrices);
+  return { count, shopCount, field };
 }
 
 async function cmpLoadPrices() {
@@ -1715,7 +1798,9 @@ async function tornJson(paths) {
       const res = await fetch(build(key));
       const data = await res.json();
       if (data && data.error) {
-        lastErr = new Error(`${data.error.error} (${data.error.code})`);
+        const err = new Error(`${data.error.error} (${data.error.code})`);
+        err.code = data.error.code;
+        lastErr = err;
         continue;
       }
       return data;
@@ -1765,7 +1850,8 @@ async function queryTravel() {
     }
     setStatus(`${rest}.<br>${verdict}`);
   } catch (e) {
-    setStatus(t('api.error', { msg: esc(e.message) }));
+    // código 16 = la key no tiene nivel suficiente para leer el vuelo
+    setStatus(e.code === 16 ? t('api.errAccess') : t('api.error', { msg: esc(e.message) }));
   }
 }
 
@@ -1774,7 +1860,7 @@ async function suggestPrice() {
   setStatus(t('api.searching'));
   try {
     const res = await loadMarketPrices();
-    applyMarketPriceToForm();
+    applySalePriceToForm();
     renderComparator();
     renderItemOptions();
     render();
@@ -1825,7 +1911,7 @@ function bindEvents() {
       if (id === 'item') {
         buyPriceTouched = false;
         applyItemFromIndex();
-        applyMarketPriceToForm();
+        applySalePriceToForm();
         applyItemTimings();
       }
       if (id === 'country') {
@@ -1915,6 +2001,16 @@ function bindEvents() {
     });
   });
   $('#cmpShops').addEventListener('click', cmpLoadShops);
+  $('#saleModeSwitch').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tier-btn');
+    if (!btn || btn.dataset.mode === saleMode) return;
+    saleMode = btn.dataset.mode;
+    try { localStorage.setItem(SALEMODE_KEY, saleMode); } catch { /* ignorar */ }
+    applySalePriceToForm();
+    renderComparator();
+    renderItemOptions();
+    render();
+  });
   $('#cmpClear').addEventListener('click', () => {
     market = {};
     marketQty = {};
