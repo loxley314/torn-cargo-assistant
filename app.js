@@ -197,12 +197,12 @@ const sameDay = (a, b) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 function fmtClock(date, ref = new Date()) {
-  const t = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-  if (sameDay(date, ref)) return t;
+  const t2 = date.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  if (sameDay(date, ref)) return t2;
   const diff = Math.round((date.getTime() - ref.getTime()) / (24 * 60 * MIN));
-  if (diff === 1) return `mañana ${t}`;
-  if (diff === -1) return `ayer ${t}`;
-  return `${date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })} ${t}`;
+  if (diff === 1) return `${t('time.tomorrow')} ${t2}`;
+  if (diff === -1) return `${t('time.yesterday')} ${t2}`;
+  return `${date.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit' })} ${t2}`;
 }
 
 /* ------------------------------ estado ------------------------------ */
@@ -255,10 +255,10 @@ const toDateInput = (d) =>
 function buildModel(f, now) {
   const errors = [];
   const flight = parseDuration(f.flight);
-  if (flight == null || flight <= 0) errors.push('duración del vuelo');
+  if (flight == null || flight <= 0) errors.push('err.flight');
 
   const delay = parseDuration(f.restockDelay);
-  if (delay == null || delay < 0) errors.push('tiempo hasta el restock');
+  if (delay == null || delay < 0) errors.push('err.restock');
 
   const margin = Math.max(0, num(f.margin) ?? 0);
   const durMin = Math.max(0, num(f.stockMin) ?? 0);
@@ -266,7 +266,7 @@ function buildModel(f, now) {
   const durTyp = (durMin + durMax) / 2;
 
   const anchor = resolveAnchorFull(f.anchorDate, f.anchorTime, now);
-  if (!anchor) errors.push('hora del ancla');
+  if (!anchor) errors.push('err.anchor');
 
   const base = {
     now, anchor, errors, flight, delay, margin, durMin, durMax, durTyp,
@@ -355,9 +355,7 @@ function renderHero(m) {
   const hero = $('#hero');
 
   if (m.errors.length) {
-    hero.innerHTML = `<div class="hero-empty">
-      Completá <b>${m.errors.map(esc).join('</b>, <b>')}</b> para calcular la hora de salida.
-    </div>`;
+    hero.innerHTML = `<div class="hero-empty">${t('hero.errors', { list: m.errors.map((k) => esc(t(k))).join('</b>, <b>') })}</div>`;
     return;
   }
 
@@ -366,35 +364,35 @@ function renderHero(m) {
   const warnings = warningsFor(m);
 
   if (!p) {
-    hero.innerHTML = `<div class="hero-empty">Sin restocks proyectados en las próximas ${HORIZON / 60} h.</div>${run}${warnings}`;
+    hero.innerHTML = `<div class="hero-empty">${t('hero.noCycles', { h: HORIZON / 60 })}</div>${run}${warnings}`;
     return;
   }
 
   const waitNote = p.maxWait > 0.5
-    ? `llegando al restock más temprano esperarías hasta <b>${esc(fmtDuration(p.maxWait))}</b> si tarda en caer`
-    : 'el primer restock queda clavado';
+    ? t('hero.waitRange', { d: esc(fmtDuration(p.maxWait)) })
+    : t('hero.waitExact');
 
   const nowCell = (m.runNow.ev.kind === 'in' || m.runNow.ev.kind === 'maybe')
-    ? `<div><span class="k">Si salís ya</span><span class="v">${esc(fmtClock(m.runNow.arrival, m.now))}</span></div>`
+    ? `<div><span class="k">${t('hero.ifLeaveNow')}</span><span class="v">${esc(fmtClock(m.runNow.arrival, m.now))}</span></div>`
     : '';
 
   hero.innerHTML = `
     <div class="hero-main">
-      <div class="hero-label">Despegá a las</div>
+      <div class="hero-label">${t('hero.departLabel')}</div>
       <div class="hero-time">${esc(fmtClock(p.departure, m.now))}</div>
       <div class="hero-count">
-        <span class="lbl">en</span>
+        <span class="lbl">${t('hero.in')}</span>
         <span class="js-count" data-ts="${p.departure.getTime()}">${esc(fmtCountdown(p.departure - m.now))}</span>
       </div>
     </div>
     <div class="hero-details">
-      <div><span class="k">Aterrizas</span><span class="v">${esc(fmtClock(p.restockLo, m.now))}</span></div>
-      <div><span class="k">Restock</span><span class="v">${esc(fmtClock(p.restockLo, m.now))}${p.restockHi.getTime() > p.restockLo.getTime() ? ' – ' + esc(fmtClock(p.restockHi, m.now)) : ''}</span></div>
-      <div><span class="k">Stock hasta</span><span class="v">${esc(fmtClock(p.stockEnd, m.now))}</span></div>
-      <div><span class="k">Vuelo + margen</span><span class="v">${esc(fmtDuration(m.flight + m.margin))}</span></div>
+      <div><span class="k">${t('hero.land')}</span><span class="v">${esc(fmtClock(p.restockLo, m.now))}</span></div>
+      <div><span class="k">${t('hero.restock')}</span><span class="v">${esc(fmtClock(p.restockLo, m.now))}${p.restockHi.getTime() > p.restockLo.getTime() ? ' – ' + esc(fmtClock(p.restockHi, m.now)) : ''}</span></div>
+      <div><span class="k">${t('hero.stockUntil')}</span><span class="v">${esc(fmtClock(p.stockEnd, m.now))}</span></div>
+      <div><span class="k">${t('hero.flightMargin')}</span><span class="v">${esc(fmtDuration(m.flight + m.margin))}</span></div>
       ${nowCell}
     </div>
-    <div class="note">🎯 Objetivo: ciclo <b>V${p.n}</b>, ${waitNote}.</div>
+    <div class="note">${t('hero.objective', { n: p.n, waitNote })}</div>
     ${run}${warnings}`;
 }
 
@@ -403,11 +401,17 @@ function runNowNote(m) {
   const at = esc(fmtClock(arrival, m.now));
   switch (ev.kind) {
     case 'in':
-      return `<div class="note hot">🚨 <b>Si salís ahora</b> aterrizás ${at}, ${esc(fmtDuration(ev.since))} después del restock de las ${esc(fmtClock(ev.prev.restockLo, m.now))}. Con un stock que dura ${esc(fmtDuration(m.durMin))}–${esc(fmtDuration(m.durMax))} <b>todavía lo pillás</b>.</div>`;
+      return `<div class="note hot">${t('run.in', {
+        at, since: esc(fmtDuration(ev.since)), restock: esc(fmtClock(ev.prev.restockLo, m.now)),
+        min: esc(fmtDuration(m.durMin)), max: esc(fmtDuration(m.durMax)),
+      })}</div>`;
     case 'maybe':
-      return `<div class="note maybe">⚠️ <b>Si salís ahora</b> aterrizás ${at}, ${esc(fmtDuration(ev.since))} después del restock. El stock puede estar ya agotado: empieza a ser lotería.</div>`;
+      return `<div class="note maybe">${t('run.maybe', { at, since: esc(fmtDuration(ev.since)) })}</div>`;
     case 'early':
-      return `<div class="note early">🧳 <b>Si salís ahora</b> aterrizás ${at} y el próximo restock es a las ${esc(fmtClock(ev.next.restockLo, m.now))}: esperarías ${esc(fmtDuration(ev.wait))} en el destino. La salida óptima es a las ${esc(fmtClock(ev.next.departure, m.now))}.</div>`;
+      return `<div class="note early">${t('run.early', {
+        at, restock: esc(fmtClock(ev.next.restockLo, m.now)),
+        wait: esc(fmtDuration(ev.wait)), depart: esc(fmtClock(ev.next.departure, m.now)),
+      })}</div>`;
     default:
       return '';
   }
@@ -417,18 +421,21 @@ function warningsFor(m) {
   const out = [];
   const age = (m.now.getTime() - m.anchor.getTime()) / MIN;
   if (age > OLD_ANCHOR) {
-    out.push(`📌 El ancla es de hace <b>${esc(fmtDuration(age))}</b>: cada ciclo arrastra la incertidumbre del stock (±${esc(fmtDuration((m.durMax - m.durMin) / 2))} por ciclo). Reanclá el shop a 0 cuando puedas.`);
+    out.push(t('warn.oldAnchor', {
+      age: esc(fmtDuration(age)),
+      spread: esc(fmtDuration((m.durMax - m.durMin) / 2)),
+    }));
   }
   if (m.primary && m.primary.n > 1) {
-    out.push(`⏳ El próximo restock ya no es alcanzable saliendo después de ahora; esta es la ventana <b>V${m.primary.n}</b>.`);
+    out.push(t('warn.nextCycle', { n: m.primary.n }));
   }
-  return out.map((t) => `<div class="note">${t}</div>`).join('');
+  return out.map((html) => `<div class="note">${html}</div>`).join('');
 }
 
 function renderTable(m) {
   const box = $('#results');
   if (m.errors.length || !m.visible.length) {
-    box.innerHTML = '<p class="hint">Sin ventanas que mostrar.</p>';
+    box.innerHTML = `<p class="hint">${t('table.noWindows')}</p>`;
     return;
   }
 
@@ -436,8 +443,8 @@ function renderTable(m) {
     const past = c.departure.getTime() < m.now.getTime();
     const isPrimary = m.primary && c.n === m.primary.n;
     const badge = isPrimary
-      ? '<span class="badge primary">salir</span>'
-      : past ? '<span class="badge past">pasada</span>' : '';
+      ? `<span class="badge primary">${t('table.badgeLeave')}</span>`
+      : past ? `<span class="badge past">${t('table.badgePast')}</span>` : '';
     const restock = c.restockHi.getTime() > c.restockLo.getTime()
       ? `${esc(fmtClock(c.restockLo, m.now))} – ${esc(fmtClock(c.restockHi, m.now))}`
       : esc(fmtClock(c.restockLo, m.now));
@@ -456,15 +463,12 @@ function renderTable(m) {
     <div class="table-wrap">
       <table class="cycles">
         <thead><tr>
-          <th>#</th><th>Restock</th><th>Salir</th><th class="col-wait">Espera máx.</th><th>Stock hasta</th><th></th>
+          <th>#</th><th>${t('table.headRestock')}</th><th>${t('table.headDepart')}</th><th class="col-wait">${t('table.headWait')}</th><th>${t('table.headStockEnd')}</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <p class="hint">
-      «Stock hasta» es el peor caso (el stock aguanta ${esc(fmtDuration(m.durMax))} desde el restock).
-      Anclando el shop a 0 la primera fila queda exacta; las siguientes arrastran la horquilla.
-    </p>`;
+    <p class="hint">${t('table.note', { dur: esc(fmtDuration(m.durMax)) })}</p>`;
 }
 
 function renderTimeline(m) {
@@ -504,23 +508,23 @@ function renderTimeline(m) {
       <div class="tl-track">
         <div class="tl-now" style="left:${nowPct}%"></div>
         ${bar(c.departure, c.restockLo, 'flight', '✈ ' + fmtDuration((c.restockLo - c.departure) / MIN))}
-        ${bar(c.restockLo, c.stockEnd, 'stock', 'restock')}
+        ${bar(c.restockLo, c.stockEnd, 'stock', t('tl.restock'))}
       </div>
     </div>`).join('');
 
   box.innerHTML = `
-    <div class="tl-title">Línea de tiempo</div>
+    <div class="tl-title">${t('tl.title')}</div>
     <div class="tl-row tl-axis"><div class="tl-name"></div><div class="tl-track">
       <div class="tl-now" style="left:${nowPct}%"></div>${ticks.join('')}
     </div></div>
     ${rows}
-    <p class="hint">Azul = vuelo · Ámbar = stock disponible estimado · Rojo = ahora.</p>`;
+    <p class="hint">${t('tl.legend')}</p>`;
 }
 
 function renderNumbers(m) {
   const box = $('#numbers');
   if (m.errors.length) {
-    box.innerHTML = '<p class="hint">Completá los parámetros.</p>';
+    box.innerHTML = `<p class="hint">${t('num.complete')}</p>`;
     return;
   }
 
@@ -536,17 +540,20 @@ function renderNumbers(m) {
     `<div><dt>${esc(label)}</dt><dd class="${cls}">${esc(value)}</dd></div>`;
 
   box.innerHTML = `<dl class="stats">
-      ${cell('Capacidad', cap == null ? '—' : `${cap} items`, cap == null ? 'na' : '')}
-      ${cell('Inversión', invest == null ? '—' : fmtMoney(invest), invest == null ? 'na' : '')}
-      ${cell('Ingreso', net == null ? '—' : fmtMoney(net), net == null ? 'na' : '')}
-      ${cell('Beneficio / viaje', profit == null ? '—' : fmtMoney(profit), profit == null ? 'na' : profit >= 0 ? 'good' : 'bad')}
-      ${cell('Beneficio / hora', perHour == null ? '—' : fmtMoney(perHour), perHour == null ? 'na' : perHour >= 0 ? 'good' : 'bad')}
-      ${cell('Ida y vuelta', fmtDuration(m.flight * 2))}
+      ${cell(t('num.capacity'), cap == null ? '—' : t('num.items', { n: cap }), cap == null ? 'na' : '')}
+      ${cell(t('num.invest'), invest == null ? '—' : fmtMoney(invest), invest == null ? 'na' : '')}
+      ${cell(t('num.income'), net == null ? '—' : fmtMoney(net), net == null ? 'na' : '')}
+      ${cell(t('num.profitTrip'), profit == null ? '—' : fmtMoney(profit), profit == null ? 'na' : profit >= 0 ? 'good' : 'bad')}
+      ${cell(t('num.profitHour'), perHour == null ? '—' : fmtMoney(perHour), perHour == null ? 'na' : perHour >= 0 ? 'good' : 'bad')}
+      ${cell(t('num.roundTrip'), fmtDuration(m.flight * 2))}
     </dl>
     <p class="numbers-note">
       ${hasSell
-        ? `${m.fee ? `Con un ${m.fee}% de comisión` : 'Sin comisión'}, cada viaje cuesta ${fmtMoney(invest)} y rinde ${fmtMoney(profit)}. «Beneficio/hora» cuenta solo el vuelo de ida y vuelta.`
-        : 'Poné el <b>precio de venta en Torn</b> (item market o bazaar) para ver el beneficio. El coste abroad lo rellena el stock de YATA.'}
+        ? t('num.note', {
+            fee: m.fee ? t('num.withFee', { fee: m.fee }) : t('num.noFee'),
+            invest: fmtMoney(invest), profit: fmtMoney(profit),
+          })
+        : t('num.needSell')}
     </p>`;
 }
 
@@ -575,26 +582,38 @@ function renderHints(m, f) {
   const auto = autoFlight();
 
   if (flight == null) {
-    $('#flightHint').textContent = 'Formatos: 89 · 1h29m · 1:29';
+    $('#flightHint').textContent = t('flight.formats');
   } else if (!times || !auto) {
-    $('#flightHint').textContent = `= ${fmtDuration(flight)} (${Math.round(flight)} min)`;
+    $('#flightHint').textContent = t('flight.simple', { dur: fmtDuration(flight), min: Math.round(flight) });
   } else {
     const matches = Math.abs(auto.minutes - flight) < 0.5;
-    $('#flightHint').innerHTML = `= <b>${esc(fmtDuration(flight))}</b> (${Math.round(flight)} min) ·
-      ${esc(COUNTRIES[code])} · ${esc(tierLabel)}${$('#travelBook').checked ? ' + book' : ''} ·
-      wiki: <b>${esc(fmtDuration(auto.minutes))}</b>${matches ? '' : ' (lo has cambiado a mano)'} ·
-      vuelo ${esc(fmtMoney(times.cost))}`;
+    $('#flightHint').innerHTML = t('flight.detail', {
+      dur: esc(fmtDuration(flight)),
+      min: Math.round(flight),
+      country: esc(COUNTRIES[code]),
+      tier: esc(tierLabel),
+      book: $('#travelBook').checked ? ' + book' : '',
+      wiki: esc(fmtDuration(auto.minutes)),
+      manual: matches ? '' : esc(t('flight.changedManually')),
+      cost: esc(fmtMoney(times.cost)),
+    });
   }
 
   $('#anchorHint').innerHTML = (m.anchor && m.firstRestock)
-    ? `Ancla <b>${esc(fmtClock(m.anchor, m.now))}</b> (hace ${esc(fmtDuration((m.now.getTime() - m.anchor.getTime()) / MIN))}) ·
-       primer restock <b>${esc(fmtClock(m.firstRestock, m.now))}</b>`
-    : 'Elegí cuándo lo viste (vacío o recién restockeado) para anclar el cálculo.';
+    ? t('anchorHint.some', {
+        time: esc(fmtClock(m.anchor, m.now)),
+        ago: esc(fmtDuration((m.now.getTime() - m.anchor.getTime()) / MIN)),
+        restock: esc(fmtClock(m.firstRestock, m.now)),
+      })
+    : t('anchorHint.none');
 
   $('#cycleHint').innerHTML = m.errors.length
     ? ''
-    : `Ciclo completo: <b>${esc(fmtDuration(m.delay + m.durTyp))}</b>
-       (restock ${esc(fmtDuration(m.delay))} + stock ~${esc(fmtDuration(m.durTyp))})`;
+    : t('cycleHint.some', {
+        cycle: esc(fmtDuration(m.delay + m.durTyp)),
+        delay: esc(fmtDuration(m.delay)),
+        dur: esc(fmtDuration(m.durTyp)),
+      });
 
   renderTimingsHint();
   renderObservations();
@@ -641,12 +660,12 @@ function applyItemFromIndex() {
 async function refreshYata(force = false) {
   const status = $('#yataStatus');
   const code = $('#country').value;
-  status.textContent = 'Cargando stock de la comunidad…';
+  status.textContent = t('yata.loading');
   try {
     const data = await fetchYata(force);
     const country = data?.stocks?.[code];
     if (!country) {
-      status.textContent = 'YATA no tiene datos de este país.';
+      status.textContent = t('yata.noData');
       return;
     }
     itemIndex = new Map(country.stocks.map((it) => [String(it.name).toLowerCase(), it]));
@@ -656,9 +675,11 @@ async function refreshYata(force = false) {
 
     const age = Math.max(0, Math.round((Date.now() - country.update * 1000) / MIN));
     const hit = applyItemFromIndex();
-    status.innerHTML = `Stock de <b>${esc(COUNTRIES[code] || code)}</b> vía YATA ·
-      última lectura de la comunidad hace <b>${age} min</b> · ${country.stocks.length} artículos.` +
-      (hit ? `<br>${esc(hit.name)}: <b>${hit.quantity}</b> uds a ${esc(fmtMoney(hit.cost))}.` : '');
+    status.innerHTML = t('yata.loaded', {
+      country: esc(COUNTRIES[code] || code), age, count: country.stocks.length,
+    }) + (hit ? `<br>${t('yata.item', {
+      name: esc(hit.name), qty: hit.quantity, cost: esc(fmtMoney(hit.cost)),
+    })}` : '');
 
     // con los ids ya cargados podemos unificar datos guardados por id y aplicar lo que sepamos
     migrateItemKeys();
@@ -667,7 +688,7 @@ async function refreshYata(force = false) {
     render();
     renderComparator();
   } catch (e) {
-    status.innerHTML = `No pude leer YATA (<code>${esc(e.message)}</code>). Podés poner el coste a mano.`;
+    status.innerHTML = t('yata.error', { msg: esc(e.message) });
   }
 }
 
@@ -765,7 +786,6 @@ const quantile = (arr, q) => {
 };
 
 const bandOf = (hour) => (hour >= NIGHT_FROM && hour < NIGHT_TO ? 'noche' : 'dia');
-const BAND_LABEL = { noche: 'madrugada', dia: 'día' };
 
 /** a qué franja cae el restock que estamos calculando (para usar tus datos de madrugada) */
 function bandFromForm() {
@@ -867,48 +887,57 @@ function rememberManual(id, value) {
   saveItemState(ITEMDATA_KEY, itemData);
 }
 
-const SOURCE_BADGE = {
-  manual: '<span class="src manual">manual</span>',
-  mine: '<span class="src mine">tus datos</span>',
-  comm: '<span class="src comm">referencia</span>',
-  default: '<span class="src">defecto</span>',
-};
+const sourceBadge = (src) => `<span class="src ${src === 'default' ? '' : src}">${t('badge.' + src)}</span>`;
 
 function renderTimingsHint() {
   const box = $('#itemDataHint');
   const key = currentItemKey();
   const name = $('#item').value.trim();
   if (!key || !name) {
-    box.innerHTML = 'Elegí un artículo para ver su cadencia de restock.';
+    box.innerHTML = t('timings.pickItem');
     return;
   }
 
   const d = deriveTimings(key);
+  const min = Math.round(d.durMin.value);
+  const max = Math.round(d.durMax.value);
   const pieces = [
     `<b>${esc(name)}</b>`,
-    `cadencia <b>${esc(fmtDuration(Math.round(d.cadence.value)))}</b> ${SOURCE_BADGE[d.cadence.source]}`,
-    `stock <b>${esc(fmtDuration(Math.round(d.durMin.value)))}</b>${Math.round(d.durMax.value) !== Math.round(d.durMin.value) ? `–<b>${esc(fmtDuration(Math.round(d.durMax.value)))}</b>` : ''} ${SOURCE_BADGE[d.durMin.source]}`,
+    t('timings.cadence', { v: esc(fmtDuration(Math.round(d.cadence.value))), badge: sourceBadge(d.cadence.source) }),
+    t('timings.stock', {
+      v: esc(fmtDuration(min)),
+      range: max !== min ? `–<b>${esc(fmtDuration(max))}</b>` : '',
+      badge: sourceBadge(d.durMin.source),
+    }),
   ];
 
   const notes = [];
   const cad = d.learned.cadence.n;
   const dep = d.learned.depletion.n;
-  if (cad) notes.push(`${cad} ${cad === 1 ? 'medida tuya' : 'medidas tuyas'} de cadencia`);
-  if (dep) notes.push(`${dep} de duración`);
+  if (cad) notes.push(t(cad === 1 ? 'timings.noteCadence1' : 'timings.noteCadenceN', { n: cad }));
+  if (dep) notes.push(t('timings.noteDuration', { n: dep }));
   const usedMine = d.cadence.source === 'mine' || d.durMin.source === 'mine';
-  if (!usedMine && (cad || dep)) notes.push(`con ${MIN_SAMPLES} ya las uso yo`);
+  if (!usedMine && (cad || dep)) notes.push(t('timings.noteNeed', { n: MIN_SAMPLES }));
   if (d.ref) {
     const bits = [];
     if (d.ref.cadence) bits.push(`restock ${fmtDuration(d.ref.cadence)}`);
     if (d.ref.depletion) bits.push(`stock ~${fmtDuration(d.ref.depletion)}`);
-    notes.push(`comunidad: ${bits.join(', ')} (${d.ref.samples} muestras, ${Math.round((d.ref.confidence ?? 0) * 100)}% fiabilidad)`);
+    notes.push(t('timings.noteCommunity', {
+      bits: bits.join(', '), samples: d.ref.samples,
+      conf: Math.round((d.ref.confidence ?? 0) * 100),
+    }));
   }
   const night = d.learned.byBand.noche;
   const day = d.learned.byBand.dia;
   if (night.n && day.n) {
-    notes.push(`de <b>madrugada</b> aguanta ${esc(fmtDuration(Math.round(night.median)))} y de día ${esc(fmtDuration(Math.round(day.median)))} (tus datos)`);
+    notes.push(t('timings.noteBands', {
+      night: esc(fmtDuration(Math.round(night.median))),
+      day: esc(fmtDuration(Math.round(day.median))),
+    }));
   }
-  const bandNote = d.bandStat.n >= MIN_SAMPLES ? ` · usando tu media de ${BAND_LABEL[d.band]}` : '';
+  const bandNote = d.bandStat.n >= MIN_SAMPLES
+    ? ' · ' + t('timings.usingBand', { band: t('band.' + d.band) })
+    : '';
 
   box.innerHTML = `${pieces.join(' · ')}${bandNote}` + (notes.length ? `<br>${notes.join(' · ')}` : '');
 }
@@ -921,9 +950,11 @@ function renderObservations() {
   const stat = key ? learnStats(key) : null;
 
   summary.innerHTML = observations.length
-    ? `Tienes <b>${observations.length}</b> observaciones guardadas` +
-      (mine.length ? `, <b>${mine.length}</b> de este artículo.` : ' (ninguna de este artículo).')
-    : 'Anota lo que ves en el shop y la app aprende la cadencia y lo que aguanta el stock. Con dos anclas del mismo artículo ya saca datos.';
+    ? t('obs.summarySome', {
+        total: observations.length,
+        ofItem: mine.length ? t('obs.ofItem', { n: mine.length }) : t('obs.noneOfItem'),
+      })
+    : t('obs.summaryNone');
 
   if (!observations.length) { body.innerHTML = ''; return; }
 
@@ -934,24 +965,24 @@ function renderObservations() {
 
   const stats = stat && (stat.cadence.n || stat.depletion.n)
     ? `<div class="obs-stats">
-        ${statCell('Cadencia medida', stat.cadence, stat.cadence.n ? `(${stat.cadence.n})` : '')}
-        ${statCell('Aguanta el stock', stat.depletion, stat.depletion.n ? `(${stat.depletion.n})` : '')}
-        ${statCell('Madrugada', stat.byBand.noche, stat.byBand.noche.n ? `(${stat.byBand.noche.n})` : '')}
-        ${statCell('Día', stat.byBand.dia, stat.byBand.dia.n ? `(${stat.byBand.dia.n})` : '')}
+        ${statCell(t('obs.statCadence'), stat.cadence, stat.cadence.n ? `(${stat.cadence.n})` : '')}
+        ${statCell(t('obs.statStock'), stat.depletion, stat.depletion.n ? `(${stat.depletion.n})` : '')}
+        ${statCell(t('obs.statNight'), stat.byBand.noche, stat.byBand.noche.n ? `(${stat.byBand.noche.n})` : '')}
+        ${statCell(t('obs.statDay'), stat.byBand.dia, stat.byBand.dia.n ? `(${stat.byBand.dia.n})` : '')}
       </div>`
-    : '<p class="hint">Con dos anclas alternas del mismo artículo (vacía → restock) ya se calcula la cadencia.</p>';
+    : `<p class="hint">${t('obs.needTwo')}</p>`;
 
   const shown = (key && mine.length ? mine : observations);
   const rows = [...shown].sort((a, b) => b.at - a.at).slice(0, 12).map((o) => `
     <tr>
       <td>${esc(fmtClock(new Date(o.at)))}</td>
       <td class="cmp-name">${esc(o.item)}</td>
-      <td>${o.mode === 'empty' ? 'vacío' : 'restock'}</td>
+      <td>${t(o.mode === 'empty' ? 'obs.stateEmpty' : 'obs.stateRestock')}</td>
     </tr>`).join('');
 
   body.innerHTML = `${stats}
     <div class="obs-list"><table class="cycles cmp">
-      <thead><tr><th>Hora</th><th>Artículo</th><th>Estado</th></tr></thead>
+      <thead><tr><th>${t('obs.headTime')}</th><th>${t('obs.headItem')}</th><th>${t('obs.headState')}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 }
@@ -960,7 +991,7 @@ function saveObservation() {
   const key = currentItemKey();
   const anchor = resolveAnchorFull($('#anchorDate').value, $('#anchorTime').value, new Date());
   if (!key || !anchor) {
-    $('#obsSummary').innerHTML = 'Necesito un artículo y una hora de ancla para guardar la observación.';
+    $('#obsSummary').innerHTML = t('obs.needData');
     return;
   }
   const mode = $('#anchorMode').value;
@@ -975,8 +1006,12 @@ function saveObservation() {
   render();
   $('#obsBox').open = true;
   $('#obsSummary').innerHTML = exists
-    ? 'Esa observación ya estaba guardada.'
-    : `Guardada: <b>${esc($('#item').value.trim())}</b> ${mode === 'empty' ? 'vacío' : 'restockeado'} a las ${esc(fmtClock(anchor))}.`;
+    ? t('obs.alreadySaved')
+    : t('obs.saved', {
+        item: esc($('#item').value.trim()),
+        state: t(mode === 'empty' ? 'obs.stateEmptyLong' : 'obs.stateRestockLong'),
+        time: esc(fmtClock(anchor)),
+      });
 }
 
 function clearObservations() {
@@ -993,12 +1028,12 @@ function importCommunityRefs(text) {
   try {
     data = JSON.parse(text);
   } catch {
-    status.textContent = 'No pude leerlo como JSON: copia la respuesta completa de la petición.';
+    status.textContent = t('import.badJson');
     return;
   }
   const analyses = data?.analyses || data;
   if (!analyses || typeof analyses !== 'object') {
-    status.textContent = 'No encuentro el bloque "analyses" en ese JSON.';
+    status.textContent = t('import.noAnalyses');
     return;
   }
 
@@ -1025,14 +1060,14 @@ function importCommunityRefs(text) {
   }
 
   if (!count) {
-    status.textContent = 'El JSON no traía artículos reconocibles (formato "país-itemId").';
+    status.textContent = t('import.noItems');
     return;
   }
   saveItemState(REF_KEY, refs);
   lastItemKey = null;
   applyItemTimings({ force: true });
   render();
-  status.innerHTML = `Importados <b>${count}</b> artículos. Ahora la cadencia y el stock salen de esos datos si no tienes medidas propias.`;
+  status.innerHTML = t('import.ok', { n: count });
 }
 
 /* ------------------ capacidad, alarma, listados ------------------ */
@@ -1054,11 +1089,18 @@ function renderCapacity() {
   const c = capacityTotal();
   const parts = [`${c.base} base`];
   if (c.book) parts.push(`${c.book} book`);
-  if (c.company.bonus) parts.push(`${c.company.bonus} compañía`);
-  $('#capHint').innerHTML =
-    `${parts.join(' + ')} = <b>${c.total}</b>` +
-    (c.tourism ? ` · Tourism Day = <b>${c.grand}</b>${c.company.bonus && !c.company.doubles ? ' (el bonus de Flower/Toy no se dobla)' : ''}` : '') +
-    ` · Ahora llevas <b>${esc($('#capacity').value)}</b>.`;
+  if (c.company.bonus) parts.push(`${c.company.bonus} ${t('cap.companyShort')}`);
+  $('#capHint').innerHTML = t('cap.hint', {
+    parts: parts.join(' + '),
+    total: c.total,
+    now: esc($('#capacity').value),
+    tourism: c.tourism
+      ? t('cap.hintTourism', {
+          grand: c.grand,
+          note: (c.company.bonus && !c.company.doubles) ? t('cap.hintNoDouble') : '',
+        })
+      : '',
+  });
 }
 
 function applyCapacity() {
@@ -1086,10 +1128,8 @@ function saveAlarmState() {
 function renderAlarm() {
   const btn = $('#alarmToggle');
   btn.classList.toggle('on', alarm.enabled);
-  btn.textContent = alarm.enabled ? '🔔 Aviso activado' : '🔔 Avisarme antes de la salida';
-  $('#alarmHint').innerHTML = alarm.enabled
-    ? `Te aviso <b>${alarm.lead} min</b> antes de la hora de salida. Deja la pestaña abierta.`
-    : '';
+  btn.textContent = t(alarm.enabled ? 'alarm.on' : 'alarm.off');
+  $('#alarmHint').innerHTML = alarm.enabled ? t('alarm.hint', { lead: alarm.lead }) : '';
 }
 
 function ensureAudio() {
@@ -1130,28 +1170,31 @@ function showToast(html, late = false) {
 }
 
 function flashTitle() {
-  const original = document.title;
   let on = false;
   clearInterval(alarm.titleTimer);
   alarm.titleTimer = setInterval(() => {
     on = !on;
-    document.title = on ? '⏰ ¡Hora de salir!' : original;
+    document.title = on ? t('alarm.flash') : t('app.title');
   }, 1500);
   setTimeout(() => {
     clearInterval(alarm.titleTimer);
-    document.title = original;
+    document.title = t('app.title');
   }, 30000);
 }
 
 function fireAlarm(departureTs) {
   const p = model?.primary;
-  const item = esc($('#item').value.trim() || 'tu artículo');
-  const country = esc(COUNTRIES[$('#country').value] || '');
+  const item = esc($('#item').value.trim() || t('alarm.itemFallback'));
+  const code = $('#country').value;
+  const country = esc((COUNTRIES[code] || code) && code ? t('alarm.country', { country: esc(COUNTRIES[code] || code) }) : '');
   const late = Date.now() > departureTs;
   const left = fmtDuration((departureTs - Date.now()) / MIN);
   const msg = late
-    ? `¡Se te pasa! La salida para ${item}${country ? ` en ${country}` : ''} ya venció.`
-    : `Salida para ${item}${country ? ` en ${country}` : ''} en <b>${left}</b>${p ? ` · restock ${esc(fmtClock(p.restockLo))}` : ''}.`;
+    ? t('alarm.late', { item, country })
+    : t('alarm.soon', {
+        item, country, left,
+        restock: p ? t('alarm.restock', { time: esc(fmtClock(p.restockLo)) }) : '',
+      });
 
   beep(3);
   flashTitle();
@@ -1159,7 +1202,7 @@ function fireAlarm(departureTs) {
 
   try {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('Torn Travel Planner', { body: msg.replace(/<[^>]+>/g, ''), tag: 'torn-travel' });
+      new Notification(t('alarm.notifTitle'), { body: msg.replace(/<[^>]+>/g, ''), tag: 'torn-travel' });
     }
   } catch { /* sin notificaciones */ }
 }
@@ -1215,13 +1258,13 @@ async function loadListings() {
   const summary = $('#cmpSummary');
   const rows = comparatorRows();
   if (!rows.length) {
-    summary.textContent = 'Cargá el stock de un país primero.';
+    summary.textContent = t('cmp.listingsNoStock');
     return;
   }
   let ok = 0, fail = 0, firstError = null;
   for (let i = 0; i < rows.length; i++) {
     const id = String(rows[i].item.id);
-    summary.innerHTML = `Consultando listados… ${i + 1}/${rows.length}`;
+    summary.innerHTML = t('cmp.listingsLoading', { i: i + 1, total: rows.length });
     try {
       const res = await fetchItemMarket(id);
       if (res) {
@@ -1243,9 +1286,8 @@ async function loadListings() {
   renderComparator();
   render();
   summary.innerHTML = ok
-    ? `Listados actualizados en <b>${ok}</b> artículos${fail ? `, ${fail} sin datos` : ''}.`
-    : `No pude leer los listados: <code>${esc(firstError ? firstError.message : 'sin datos')}</code>.
-       Necesitás una API key (nivel Public basta).`;
+    ? t('cmp.listingsUpdated', { ok, fail: fail ? t('cmp.listingsFail', { n: fail }) : '' })
+    : t('cmp.listingsError', { msg: esc(firstError ? firstError.message : t('cmp.noData')) });
 }
 
 /* --------------------- restock proyectado (importado) --------------------- */
@@ -1265,7 +1307,7 @@ function renderProjectedButton() {
     return;
   }
   btn.hidden = false;
-  btn.textContent = `⚡ Usar restock proyectado (${fmtClock(projected)})`;
+  btn.textContent = t('shop.projected', { time: fmtClock(projected) });
 }
 
 function useProjectedRestock() {
@@ -1343,7 +1385,7 @@ function renderComparator() {
   const rows = comparatorRows();
 
   if (!rows.length) {
-    box.innerHTML = '<p class="hint">Sin stock cargado para este país: usá «Recargar stock del país».</p>';
+    box.innerHTML = `<p class="hint">${t('cmp.noStock')}</p>`;
     summary.textContent = '';
     return;
   }
@@ -1354,10 +1396,12 @@ function renderComparator() {
   const missing = rows.filter((r) => r.perSlot == null).length;
 
   summary.innerHTML = best
-    ? `<b>${esc(best.item.name)}</b> en ${esc(country)}: ${esc(fmtMoney(best.perSlot))} por hueco,
-       ${esc(fmtMoney(best.perTrip))} llenando ${capacity} huecos.` +
-      (missing ? ` Faltan ${missing} precios de venta.` : '')
-    : `Poné un precio de venta (o cargá los valores de mercado con tu API key) para ver el ranking de ${esc(country)}.`;
+    ? t('cmp.summaryBest', {
+        name: esc(best.item.name), country: esc(country),
+        perSlot: esc(fmtMoney(best.perSlot)), perTrip: esc(fmtMoney(best.perTrip)),
+        capacity, missing: missing ? t('cmp.missing', { n: missing }) : '',
+      })
+    : t('cmp.summaryNone', { country: esc(country) });
 
   const body = rows.map((r) => {
     const cls = r.perSlot == null ? '' : r.perSlot >= 0 ? 'good' : 'bad';
@@ -1366,7 +1410,7 @@ function renderComparator() {
     const low = qty != null && capacity > 0 && qty < capacity;
     const qtyCell = qty == null
       ? '<span class="cmp-small">—</span>'
-      : `<span class="cmp-small${low ? ' low' : ''}">${qty} uds</span>`;
+      : `<span class="cmp-small${low ? ' low' : ''}">${esc(t('cmp.units', { n: qty }))}</span>`;
     return `<tr class="${r === best ? 'is-best' : ''}" data-id="${esc(r.item.id)}" data-cost="${esc(r.item.cost)}">
       <td class="cmp-name">${esc(r.item.name)}</td>
       <td>${esc(fmtMoney(r.item.cost))}</td>
@@ -1375,15 +1419,16 @@ function renderComparator() {
       <td data-cell="slot" class="${cls}">${r.perSlot == null ? '—' : esc(fmtMoney(r.perSlot))}</td>
       <td data-cell="trip" class="${cls}">${r.perTrip == null ? '—' : esc(fmtMoney(r.perTrip))}</td>
       <td>${qtyCell}</td>
-      <td class="${r.item.quantity ? 'cmp-stock' : 'cmp-stock none'}">${esc(r.item.quantity)} uds</td>
-      <td><button type="button" class="cmp-use" data-id="${esc(r.item.id)}">usar</button></td>
+      <td class="${r.item.quantity ? 'cmp-stock' : 'cmp-stock none'}">${esc(t('cmp.units', { n: r.item.quantity }))}</td>
+      <td><button type="button" class="cmp-use" data-id="${esc(r.item.id)}">${t('cmp.useBtn')}</button></td>
     </tr>`;
   }).join('');
 
   box.innerHTML = `<div class="cmp-wrap"><table class="cycles cmp">
       <thead><tr>
-        <th>Artículo</th><th>Coste</th><th>Venta</th><th>Beneficio/hueco</th>
-        <th>Beneficio/viaje</th><th>En venta</th><th>Stock leído</th><th></th>
+        <th>${t('cmp.headItem')}</th><th>${t('cmp.headCost')}</th><th>${t('cmp.headSell')}</th>
+        <th>${t('cmp.headPerSlot')}</th><th>${t('cmp.headPerTrip')}</th>
+        <th>${t('cmp.headOnSale')}</th><th>${t('cmp.headStockRead')}</th><th></th>
       </tr></thead>
       <tbody>${body}</tbody>
     </table></div>`;
@@ -1419,7 +1464,7 @@ function useItem(id) {
   buyPriceTouched = true;
   $('#buyPrice').value = row.item.cost;
   if (row.price != null) $('#sellPrice').value = row.price;
-  $('#cmpSummary').innerHTML = `${esc(row.item.name)} cargado en el cálculo de arriba.`;
+  $('#cmpSummary').innerHTML = t('cmp.usedItem', { name: esc(row.item.name) });
   render();
 }
 
@@ -1441,21 +1486,20 @@ async function loadMarketPrices() {
     market[String((item && item.id) ?? key)] = value;
     count++;
   }
-  if (!count) throw new Error('la API no devolvió market_value');
+  if (!count) throw new Error(t('torn.noMarketValue'));
   saveMarket();
   return count;
 }
 
 async function cmpLoadPrices() {
   const summary = $('#cmpSummary');
-  summary.textContent = 'Buscando valores de mercado…';
+  summary.textContent = t('cmp.loadingPrices');
   try {
     const count = await loadMarketPrices();
     renderComparator();
-    $('#cmpSummary').innerHTML = `Actualizados <b>${count}</b> precios de mercado desde la API de Torn.`;
+    summary.innerHTML = t('cmp.pricesUpdated', { n: count });
   } catch (e) {
-    summary.innerHTML = `No pude cargar los precios: <code>${esc(e.message)}</code>.
-      Necesitás una API key en «Opcional · conectar con la API de Torn».`;
+    summary.innerHTML = t('cmp.pricesError', { msg: esc(e.message) });
   }
 }
 
@@ -1463,8 +1507,8 @@ async function cmpLoadPrices() {
 
 async function tornJson(paths) {
   const key = $('#apiKey').value.trim();
-  if (!key) throw new Error('Falta la API key');
-  let lastErr = new Error('respuesta inesperada');
+  if (!key) throw new Error(t('torn.noKey'));
+  let lastErr = new Error(t('torn.badResponse'));
   for (const build of paths) {
     try {
       const res = await fetch(build(key));
@@ -1483,20 +1527,24 @@ async function tornJson(paths) {
 
 async function queryTravel() {
   const setStatus = (html) => { $('#apiStatus').innerHTML = html; };
-  setStatus('Consultando…');
+  setStatus(t('api.querying'));
   try {
     const data = await tornJson([
       (k) => `https://api.torn.com/v2/user/travel?key=${encodeURIComponent(k)}`,
       (k) => `https://api.torn.com/user/?selections=travel&key=${encodeURIComponent(k)}`,
     ]);
-    const t = data.travel;
+    const t2 = data.travel;
 
-    if (!t || (!t.time_left && !t.timestamp)) {
-      setStatus('No estás volando ahora mismo.');
+    if (!t2 || (!t2.time_left && !t2.timestamp)) {
+      setStatus(t('api.notFlying'));
       return;
     }
-    const arrival = t.timestamp ? new Date(t.timestamp * 1000) : addMinutes(new Date(), t.time_left / 60);
-    const rest = `Vuelo a <b>${esc(t.destination || '—')}</b> · ${t.time_left ? `quedan <b>${esc(fmtDuration(t.time_left / 60))}</b>` : ''} · aterrizás <b>${esc(fmtClock(arrival))}</b>`;
+    const arrival = t2.timestamp ? new Date(t2.timestamp * 1000) : addMinutes(new Date(), t2.time_left / 60);
+    const rest = t('api.flight', {
+      dest: esc(t2.destination || '—'),
+      left: t2.time_left ? t('api.left', { d: esc(fmtDuration(t2.time_left / 60)) }) : '',
+      arrival: esc(fmtClock(arrival)),
+    });
 
     if (!model || model.errors.length) {
       setStatus(`${rest}.`);
@@ -1506,31 +1554,31 @@ async function queryTravel() {
     const ev = evaluateArrival(arrival, model.cycles, model.durMin, model.durMax);
     let verdict;
     if (ev.kind === 'in') {
-      verdict = `✅ Llegás <b>${esc(fmtDuration(ev.since))}</b> después del restock: estás dentro de la ventana de stock.`;
+      verdict = t('api.in', { since: esc(fmtDuration(ev.since)) });
     } else if (ev.kind === 'maybe') {
-      verdict = `⚠️ Llegás <b>${esc(fmtDuration(ev.since))}</b> después del restock: puede que ya esté agotado.`;
+      verdict = t('api.maybe', { since: esc(fmtDuration(ev.since)) });
     } else if (ev.kind === 'early') {
-      verdict = `🧳 Aterrizás antes: el próximo restock es a las <b>${esc(fmtClock(ev.next.restockLo))}</b>, esperarías ${esc(fmtDuration(ev.wait))}.`;
+      verdict = t('api.early', { restock: esc(fmtClock(ev.next.restockLo)), wait: esc(fmtDuration(ev.wait)) });
     } else {
-      verdict = 'No hay restocks proyectados en ese tramo.';
+      verdict = t('api.far');
     }
     setStatus(`${rest}.<br>${verdict}`);
   } catch (e) {
-    setStatus(`Error: <code>${esc(e.message)}</code>`);
+    setStatus(t('api.error', { msg: esc(e.message) }));
   }
 }
 
 async function suggestPrice() {
   const setStatus = (html) => { $('#apiStatus').innerHTML = html; };
-  setStatus('Buscando valores de mercado…');
+  setStatus(t('api.searching'));
   try {
     const count = await loadMarketPrices();
     applyMarketPriceToForm();
     renderComparator();
     render();
-    setStatus(`Actualizados <b>${count}</b> precios de mercado. Mirá el comparador de artículos.`);
+    setStatus(t('api.updated', { n: count }));
   } catch (e) {
-    setStatus(`Error: <code>${esc(e.message)}</code>`);
+    setStatus(t('api.error', { msg: esc(e.message) }));
   }
 }
 
@@ -1637,7 +1685,7 @@ function bindEvents() {
     saveMarket();
     saveItemState(MARKETQTY_KEY, marketQty);
     renderComparator();
-    $('#cmpSummary').innerHTML = 'Precios de venta guardados borrados.';
+    $('#cmpSummary').innerHTML = t('cmp.cleared');
   });
 
   $('#capUse').addEventListener('click', () => {
@@ -1658,6 +1706,15 @@ function bindEvents() {
   $('#toast').addEventListener('click', () => { $('#toast').hidden = true; });
   $('#useProjected').addEventListener('click', useProjectedRestock);
 
+  $('#lang').addEventListener('change', () => {
+    clearInterval(alarm.titleTimer);      // el parpadeo del aviso no debe pisar el título
+    $('#toast').hidden = true;            // el aviso visible estaba en el idioma anterior
+    setLang($('#lang').value);
+    renderAlarm();
+    render();
+    renderComparator();
+  });
+
   $('#obsSave').addEventListener('click', saveObservation);
   $('#obsClear').addEventListener('click', clearObservations);
   $('#timingsReset').addEventListener('click', clearItemTimings);
@@ -1668,7 +1725,7 @@ function bindEvents() {
     lastItemKey = null;
     applyItemTimings({ force: true });
     render();
-    $('#importStatus').textContent = 'Datos importados borrados.';
+    $('#importStatus').textContent = t('import.cleared');
   });
 
   $('#cmpBody').addEventListener('input', (e) => {
@@ -1691,12 +1748,15 @@ function bindEvents() {
 }
 
 function init() {
+  setLang(detectLang(), { persist: false });
+  $('#lang').value = lang;
+
   $('#country').innerHTML = Object.entries(COUNTRIES)
     .map(([code, name]) => `<option value="${esc(code)}">${esc(name)}</option>`)
     .join('');
 
   $('#travelTier').innerHTML = TIERS
-    .map((t) => `<option value="${esc(t.id)}">${esc(t.label)}</option>`)
+    .map((tier) => `<option value="${esc(tier.id)}">${esc(tier.label)}</option>`)
     .join('');
 
   loadSettings();

@@ -1,9 +1,14 @@
-# ✈️ Torn Travel Planner
+# ✈️ Torn Cargo Assistant
 
-**▶ Web:** <https://loxley314.github.io/torn-cargo-assistant/>
+**▶ Web (ES / EN):** <https://loxley314.github.io/torn-cargo-assistant/>
 
 Calculadora de viajes para **Torn City**: te dice **a qué hora despegar** para aterrizar en el
 destino justo cuando el shop abroad hace **restock**.
+
+> **EN ·** Travel planner for **Torn City**: it tells you **what time to take off** so you land
+> right on the abroad shop **restock**. Everything is a parameter — destination, item, flight
+> tier, restock cadence, stock duration, capacity, cost and sale price — so it works for any
+> country. The interface is bilingual (Spanish/English).
 
 Caso típico: *Shark Fin en Hawaii*. Vuelo de 1h29m, el shop restockea 1h después de quedarse
 vacío y el stock aguanta 10–20 min. Como el vuelo es más largo que el ciclo del shop, el
@@ -20,6 +25,7 @@ GitHub Pages.
 ```
 index.html   interfaz
 styles.css   estilos
+i18n.js      textos ES/EN (añadir idioma = añadir una clave y una opción en el selector)
 app.js       lógica (sin dependencias)
 ```
 

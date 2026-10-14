@@ -45,6 +45,23 @@ body {
   padding: 26px 18px 6px;
 }
 
+.topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+select.lang {
+  width: auto;
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  padding: 5px 8px;
+  background: var(--panel-2);
+}
+
 .brand {
   display: flex;
   align-items: center;
