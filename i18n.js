@@ -16,6 +16,8 @@ const I18N = {
     'params.dest': 'Destino y artículo',
     'params.country': 'País (abroad)',
     'params.item': 'Artículo',
+    'params.onlyProfitable': 'Solo los rentables',
+    'params.customItem': '✎ Escribir otro artículo…',
 
     'yata.checking': 'Comprobando stock de la comunidad…',
     'yata.reload': '↻ Recargar stock del país',
@@ -29,11 +31,14 @@ const I18N = {
     'flight.tier': 'Nivel de vuelo',
     'flight.book': 'Con travel book',
     'flight.duration': 'Duración del vuelo',
-    'flight.margin': 'Llegar antes del restock (min)',
+    'flight.margin': 'Aterrizar antes o después del restock',
     'flight.formats': 'Formatos: 89 · 1h29m · 1:29',
     'flight.simple': '= {dur} ({min} min)',
     'flight.detail': '= <b>{dur}</b> ({min} min) · {country} · {tier}{book} · wiki: <b>{wiki}</b>{manual} · vuelo {cost}',
     'flight.changedManually': ' (lo has cambiado a mano)',
+    'margin.onTime': 'justo en el restock',
+    'margin.before': '{n} min <b>antes</b> del restock',
+    'margin.after': '{n} min <b>después</b> del restock',
 
     'anchorHint.some': 'Ancla <b>{time}</b> (hace {ago}) · primer restock <b>{restock}</b>',
     'anchorHint.none': 'Elegí cuándo lo viste (vacío o recién restockeado) para anclar el cálculo.',
@@ -229,6 +234,7 @@ const I18N = {
     'cmp.units': '{n} uds',
     'cmp.loadingPrices': 'Buscando valores de mercado…',
     'cmp.pricesUpdated': 'Actualizados <b>{n}</b> precios de mercado desde la API de Torn.',
+    'cmp.pricesField': '(usé el campo <code>{field}</code>)',
     'cmp.pricesError': 'No pude cargar los precios: <code>{msg}</code>. Necesitás una API key en «Opcional · conectar con la API de Torn».',
     'cmp.listingsNoStock': 'Cargá el stock de un país primero.',
     'cmp.listingsLoading': 'Consultando listados… {i}/{total}',
@@ -252,7 +258,7 @@ const I18N = {
 
     'torn.noKey': 'Falta la API key',
     'torn.badResponse': 'respuesta inesperada',
-    'torn.noMarketValue': 'la API no devolvió market_value',
+    'torn.noMarketValue': 'la API no devolvió valor de mercado (claves: {top} · artículo: {keys})',
 
     'alarm.flash': '⏰ ¡Hora de salir!',
     'alarm.late': '¡Se te pasa! La salida para {item}{country} ya venció.',
@@ -273,6 +279,8 @@ const I18N = {
     'params.dest': 'Destination and item',
     'params.country': 'Country (abroad)',
     'params.item': 'Item',
+    'params.onlyProfitable': 'Only profitable ones',
+    'params.customItem': '✎ Type another item…',
 
     'yata.checking': 'Checking community stock…',
     'yata.reload': '↻ Reload country stock',
@@ -286,11 +294,14 @@ const I18N = {
     'flight.tier': 'Flight tier',
     'flight.book': 'With travel book',
     'flight.duration': 'Flight time',
-    'flight.margin': 'Land this many min early',
+    'flight.margin': 'Land before or after the restock',
     'flight.formats': 'Formats: 89 · 1h29m · 1:29',
     'flight.simple': '= {dur} ({min} min)',
     'flight.detail': '= <b>{dur}</b> ({min} min) · {country} · {tier}{book} · wiki: <b>{wiki}</b>{manual} · flight {cost}',
     'flight.changedManually': ' (you changed it by hand)',
+    'margin.onTime': 'right on the restock',
+    'margin.before': '{n} min <b>before</b> the restock',
+    'margin.after': '{n} min <b>after</b> the restock',
 
     'anchorHint.some': 'Anchor <b>{time}</b> ({ago} ago) · first restock <b>{restock}</b>',
     'anchorHint.none': 'Pick when you saw it (empty or freshly restocked) to anchor the calculation.',
@@ -486,6 +497,7 @@ const I18N = {
     'cmp.units': '{n} units',
     'cmp.loadingPrices': 'Fetching market values…',
     'cmp.pricesUpdated': 'Updated <b>{n}</b> market values from the Torn API.',
+    'cmp.pricesField': '(used the <code>{field}</code> field)',
     'cmp.pricesError': 'Could not load prices: <code>{msg}</code>. You need an API key in «Optional · connect to the Torn API».',
     'cmp.listingsNoStock': 'Load a country\'s stock first.',
     'cmp.listingsLoading': 'Checking listings… {i}/{total}',
@@ -509,7 +521,7 @@ const I18N = {
 
     'torn.noKey': 'API key missing',
     'torn.badResponse': 'unexpected response',
-    'torn.noMarketValue': 'the API returned no market_value',
+    'torn.noMarketValue': 'the API returned no market value (keys: {top} · item: {keys})',
 
     'alarm.flash': '⏰ Time to leave!',
     'alarm.late': 'You are late! Departure for {item}{country} has already gone.',

@@ -30,21 +30,26 @@ app.js       lógica (sin dependencias)
 flags/       banderas del selector (SVG, ~0.3-0.5 KB)
 ```
 
-1. **Ancla el shop**: cuando lo veas a **0**, pon qué día y a qué hora lo viste y deja
+1. **Elige destino y artículo** en los desplegables. La lista de artículos es la del país
+   (YATA), con el coste o el beneficio por hueco al lado y un ★ en el mejor. Con **«Solo los
+   rentables»** se ocultan los que no dan beneficio con el precio de venta que tengas puesto, y
+   con *✎ Escribir otro artículo…* puedes teclear uno a mano.
+2. **Ancla el shop**: cuando lo veas a **0**, pon qué día y a qué hora lo viste y deja
    *«Se ha quedado VACÍA»*. Es el dato más preciso que existe (el primer restock queda
    clavado, sin la incertidumbre de cuánto duró el stock).
-2. Si viste el **restock**, usa *«Ha RESTOCKEADO»*: el cálculo sale con una horquilla
+3. Si viste el **restock**, usa *«Ha RESTOCKEADO»*: el cálculo sale con una horquilla
    (`16:38 – 16:48`) porque no sabemos cuánto tardará en vaciarse.
-3. El hero te da la hora exacta de salida. La tabla muestra las siguientes ventanas y la
+4. Ajusta el **margen** con el deslizador: a la izquierda aterrizas *antes* del restock, a la
+   derecha *después* (por si prefieres llegar 2 minutos tarde y asegurar). El centro es 0.
+5. El hero te da la hora exacta de salida. La tabla muestra las siguientes ventanas y la
    línea de tiempo pinta vuelo + ventana de stock.
 
-### Tiempo de vuelo por nivel
+### Nivel de vuelo
 
 Los vuelos tienen cuatro velocidades según tus mejoras, más el *travel book*: **Standard,
-Airstrip, WLT benefit y Business Class**, con y sin book. La app trae los tiempos del wiki
-para los 11 destinos, así que basta con elegir destino + nivel y la duración se rellena sola
-(Hawaii · Airstrip · sin book = 1h29m). Si tu personaje va distinto, puedes sobrescribir la
-duración a mano.
+Airstrip, WLT benefit y Business Class**. Se eligen en un control de cuatro botones que muestra
+el tiempo de cada nivel para el destino actual (Hawaii: `2h 7m · 1h 29m · 1h 3m · 38m`). Si tu
+personaje va distinto, puedes sobrescribir la duración a mano.
 
 ### Cadencia de restock por artículo
 
@@ -125,10 +130,13 @@ que tengas que mirar el shop.
 ### El modelo
 
 ```
-salida    = restock − tiempo de vuelo − margen
+salida    = restock + margen − tiempo de vuelo
 restock₁  = ancla + cadencia del artículo      (modo «vacía»)
 ciclo     = cadencia del artículo + duración del stock
 ```
+
+El **margen** es positivo para aterrizar *después* del restock y negativo para aterrizar
+*antes* (0 = justo en el restock).
 
 La cadencia y la duración son **por artículo** (no globales): Shark Fin restockea a los 60 min
 y aguanta ~10 min, pero Xanax tarda 120 min y otros artículos 15 o 180. Si tienes medidas
@@ -157,10 +165,16 @@ Según la tabla oficial de *Access Levels*:
 | Selección | Para qué | Nivel |
 |---|---|---|
 | `torn/items` → `market_value` | precios de venta del comparador | **Public** |
-| `market/itemmarket` → `listings` | precio real más barato + unidades en venta | **Public** |
+| `market/{id}/itemmarket` → `cost`, `quantity` | precio real más barato + unidades en venta | **Public** |
 | `torn/cityshops` → `inventory` | a cuánto venden los shops de la ciudad | **Public** |
 | `user/travel` → `time_left` | saber si llegas a tiempo al restock | **Minimal Access** |
 | `user/inventory` | (no se usa) | Limited Access |
+
+Notas de implementación, porque los nombres de los campos no son estables entre versiones:
+el listado del item market se lee de **`cost`** (no `price`), y el valor de mercado se busca en
+`market_value`, `marketValue`, `value.market_price` y `value.buy_price`, indicando en el
+mensaje cuál se usó. Si la respuesta no trae ninguno, el aviso incluye las **claves que sí
+llegaron** para poder ajustarlo sin tener que compartir la key.
 
 Con una key **Public** (la que se genera por defecto) ya funcionan los precios; para el vuelo
 hace falta **Minimal**. No hay nada hardcodeado: la key la pegas tú y se guarda en el

@@ -54,14 +54,15 @@ const DEFAULTS = {
   capCompany: 'none',
   capTourism: false,
   alarmLead: 10,
+  onlyProfitable: false,
 };
 
-const BOOL_FIELDS = ['travelBook', 'capTourism'];
+const BOOL_FIELDS = ['travelBook', 'capTourism', 'onlyProfitable'];
 
 const FIELDS = [
   'country', 'item', 'travelTier', 'travelBook', 'flight', 'margin', 'anchorMode', 'anchorDate', 'anchorTime',
   'restockDelay', 'stockMin', 'stockMax', 'capacity', 'buyPrice', 'sellPrice', 'fee',
-  'capBase', 'capCompany', 'capTourism', 'alarmLead',
+  'capBase', 'capCompany', 'capTourism', 'alarmLead', 'onlyProfitable',
 ];
 
 /* ------------------------- datos de vuelo (wiki) ------------------------- */
@@ -69,10 +70,10 @@ const FIELDS = [
    haw · Airstrip · sin book = 89 min → el 1h29m de Shark Fin. */
 
 const TIERS = [
-  { id: 'std', label: 'Standard' },
-  { id: 'air', label: 'Airstrip' },
-  { id: 'wlt', label: 'WLT benefit' },
-  { id: 'biz', label: 'Business Class' },
+  { id: 'std', label: 'Standard', short: 'STD' },
+  { id: 'air', label: 'Airstrip', short: 'AIR' },
+  { id: 'wlt', label: 'WLT benefit', short: 'WLT' },
+  { id: 'biz', label: 'Business Class', short: 'BIZ' },
 ];
 
 const TRAVEL_TIMES = {
@@ -262,7 +263,7 @@ function buildModel(f, now) {
   const delay = parseDuration(f.restockDelay);
   if (delay == null || delay < 0) errors.push('err.restock');
 
-  const margin = Math.max(0, num(f.margin) ?? 0);
+  const margin = Math.max(-120, Math.min(120, num(f.margin) ?? 0));
   const durMin = Math.max(0, num(f.stockMin) ?? 0);
   const durMax = Math.max(durMin, num(f.stockMax) ?? durMin);
   const durTyp = (durMin + durMax) / 2;
@@ -295,7 +296,8 @@ function buildModel(f, now) {
       n: i + 1,
       restockLo: lo,
       restockHi: hi,
-      departure: addMinutes(lo, -(flight + margin)),
+      // margen positivo = aterrizar después del restock; negativo = antes
+      departure: addMinutes(lo, margin - flight),
       stockEnd: addMinutes(hi, durMax),
       maxWait: (hi.getTime() - lo.getTime()) / MIN,
     });
@@ -350,6 +352,7 @@ function render() {
   renderTimeline(model);
   renderNumbers(model);
   renderHints(model, f);
+  renderItemOptions();
   save(f);
 }
 
@@ -391,7 +394,7 @@ function renderHero(m) {
       <div><span class="k">${t('hero.land')}</span><span class="v">${esc(fmtClock(p.restockLo, m.now))}</span></div>
       <div><span class="k">${t('hero.restock')}</span><span class="v">${esc(fmtClock(p.restockLo, m.now))}${p.restockHi.getTime() > p.restockLo.getTime() ? ' – ' + esc(fmtClock(p.restockHi, m.now)) : ''}</span></div>
       <div><span class="k">${t('hero.stockUntil')}</span><span class="v">${esc(fmtClock(p.stockEnd, m.now))}</span></div>
-      <div><span class="k">${t('hero.flightMargin')}</span><span class="v">${esc(fmtDuration(m.flight + m.margin))}</span></div>
+      <div><span class="k">${t('hero.flightMargin')}</span><span class="v">${esc(fmtDuration(m.flight - m.margin))}</span></div>
       ${nowCell}
     </div>
     <div class="note">${t('hero.objective', { n: p.n, waitNote })}</div>
@@ -621,6 +624,101 @@ function renderHints(m, f) {
   renderObservations();
   renderCapacity();
   renderProjectedButton();
+  renderTierSwitch();
+  renderMargin();
+}
+
+/* ------- selectores: nivel de vuelo, margen antes/después y artículo ------- */
+
+/** nivel de vuelo como control segmentado, con el tiempo del wiki en cada botón */
+function renderTierSwitch() {
+  const box = $('#travelTierSwitch');
+  const times = TRAVEL_TIMES[$('#country').value];
+  const withBook = $('#travelBook').checked;
+  const current = $('#travelTier').value || 'air';
+
+  box.innerHTML = TIERS.map((tier) => {
+    const table = times ? (withBook ? times.book : times.plain) : null;
+    const mins = table ? table[tier.id] : null;
+    const checked = tier.id === current;
+    return `<button type="button" class="tier-btn" role="radio" data-tier="${esc(tier.id)}"
+      aria-checked="${checked}" title="${esc(tier.label)}${mins != null ? ' · ' + esc(fmtDuration(mins)) : ''}">
+      ${esc(tier.short)}${mins != null ? `<span class="tier-time">${esc(fmtDuration(mins))}</span>` : ''}
+    </button>`;
+  }).join('');
+}
+
+/** margen: el slider va de aterrizar antes del restock (izquierda) a después (derecha) */
+function renderMargin() {
+  const value = Math.max(-120, Math.min(120, num($('#margin').value) ?? 0));
+  $('#marginRange').value = Math.max(-30, Math.min(30, value));
+
+  const out = $('#marginReadout');
+  const abs = Math.abs(value);
+  if (!abs) {
+    out.className = 'margin-readout exact';
+    out.innerHTML = t('margin.onTime');
+  } else {
+    out.className = `margin-readout ${value < 0 ? 'before' : 'after'}`;
+    out.innerHTML = t(value < 0 ? 'margin.before' : 'margin.after', { n: abs });
+  }
+  for (const btn of $$('#marginChips button')) {
+    btn.classList.toggle('on', Number(btn.dataset.margin) === value);
+  }
+}
+
+function setMargin(value) {
+  $('#margin').value = Math.max(-120, Math.min(120, value));
+  renderMargin();
+}
+
+/**
+ * El artículo se elige de la lista del país (YATA). Con «solo los rentables» se ocultan
+ * los que no dan beneficio con el precio de venta que tengas puesto.
+ */
+function renderItemOptions() {
+  const pick = $('#itemPick');
+  const text = $('#item');
+  const rows = comparatorRows();
+
+  if (!rows.length) {           // sin datos de YATA, dejamos escribirlo a mano
+    pick.hidden = true;
+    text.hidden = false;
+    return;
+  }
+  pick.hidden = false;
+  text.hidden = true;
+
+  const current = text.value.trim();
+  const norm = current.toLowerCase();
+  const onlyProfitable = $('#onlyProfitable').checked;
+  let list = onlyProfitable ? rows.filter((r) => r.perSlot != null && r.perSlot > 0) : rows;
+  if (!list.length) list = rows;      // si el filtro vacía la lista, no dejamos el selector muerto
+
+  const best = rows.find((r) => r.perSlot != null);
+  const known = list.some((r) => r.item.name.trim().toLowerCase() === norm);
+  const options = [];
+
+  if (current && !known) {
+    options.push(`<option value="${esc(current)}" selected>${esc(current)}</option>`);
+  }
+  for (const r of list) {
+    const isCurrent = r.item.name.trim().toLowerCase() === norm;
+    const star = r.perSlot != null && r === best ? '★ ' : '';
+    const amount = r.perSlot != null ? fmtMoney(r.perSlot) : fmtMoney(r.item.cost);
+    options.push(`<option value="${esc(r.item.name)}"${isCurrent ? ' selected' : ''}>${esc(`${star}${r.item.name} · ${amount}`)}</option>`);
+  }
+  options.push(`<option value="__custom__">${esc(t('params.customItem'))}</option>`);
+  pick.innerHTML = options.join('');
+}
+
+/** la lógica de «ha cambiado el artículo», la disparen el desplegable o el campo de texto */
+function onItemChanged() {
+  buyPriceTouched = false;
+  applyItemFromIndex();
+  applyMarketPriceToForm();
+  applyItemTimings();
+  render();
 }
 
 /* ---------------------------- tick (1 Hz) ---------------------------- */
@@ -1241,19 +1339,21 @@ function toggleAlarm() {
 
 /* --------------------- precios reales del item market --------------------- */
 
+/** la API documenta el listado del item market como { cost, quantity } */
 async function fetchItemMarket(id) {
   const data = await tornJson([
-    (k) => `https://api.torn.com/v2/market/?selections=itemmarket&id=${id}&key=${encodeURIComponent(k)}`,
     (k) => `https://api.torn.com/v2/market/${id}/itemmarket?key=${encodeURIComponent(k)}`,
+    (k) => `https://api.torn.com/v2/market/?selections=itemmarket&id=${id}&key=${encodeURIComponent(k)}`,
     (k) => `https://api.torn.com/market/${id}?selections=itemmarket&key=${encodeURIComponent(k)}`,
   ]);
   const block = data?.itemmarket;
   const listings = (block && (Array.isArray(block) ? block : block.listings)) || data?.listings || [];
-  const prices = listings.map((l) => num(l.price)).filter((v) => v != null && v > 0);
+  const priceOf = (l) => num(l && (l.cost ?? l.price));
+  const prices = listings.map(priceOf).filter((v) => v != null && v > 0);
   if (!prices.length) return null;
   const lowest = Math.min(...prices);
-  const cheapest = listings.find((l) => num(l.price) === lowest);
-  return { lowest, qty: num(cheapest?.quantity), count: listings.length };
+  const cheapest = listings.find((l) => priceOf(l) === lowest);
+  return { lowest, qty: num(cheapest && cheapest.quantity), count: listings.length };
 }
 
 async function loadListings() {
@@ -1286,6 +1386,7 @@ async function loadListings() {
   saveMarket();
   saveItemState(MARKETQTY_KEY, marketQty);
   renderComparator();
+  renderItemOptions();
   render();
   summary.innerHTML = ok
     ? t('cmp.listingsUpdated', { ok, fail: fail ? t('cmp.listingsFail', { n: fail }) : '' })
@@ -1526,7 +1627,38 @@ function useItem(id) {
   $('#buyPrice').value = row.item.cost;
   if (row.price != null) $('#sellPrice').value = row.price;
   $('#cmpSummary').innerHTML = t('cmp.usedItem', { name: esc(row.item.name) });
+  renderItemOptions();
   render();
+}
+
+/** el valor de mercado ha aparecido con varios nombres según la versión: los probamos todos */
+function extractMarketValue(item) {
+  if (!item || typeof item !== 'object') return null;
+  const nested = item.value || {};
+  const candidates = [
+    ['market_value', item.market_value],
+    ['marketValue', item.marketValue],
+    ['value.market_price', nested.market_price],
+    ['value.market_value', nested.market_value],
+    ['buy_price', item.buy_price],
+    ['value.buy_price', nested.buy_price],
+  ];
+  for (const [field, raw] of candidates) {
+    const value = num(raw);
+    if (value != null && value > 0) return { value, field };
+  }
+  return null;
+}
+
+/** diagnóstico sin exponer la key: qué claves trajo la respuesta */
+function describeShape(data) {
+  const top = Object.keys(data || {}).slice(0, 8).join(', ') || '—';
+  const items = data?.items;
+  const sample = Array.isArray(items)
+    ? items[0]
+    : (items && typeof items === 'object' ? Object.values(items)[0] : null);
+  const keys = sample && typeof sample === 'object' ? Object.keys(sample).slice(0, 12).join(', ') : '—';
+  return { top, keys };
 }
 
 async function loadMarketPrices() {
@@ -1535,30 +1667,38 @@ async function loadMarketPrices() {
     (k) => `https://api.torn.com/torn/?selections=items&key=${encodeURIComponent(k)}`,
   ]);
 
-  // v2 devuelve una lista, v1 un objeto indexado por id
+  // v2 puede devolver lista u objeto indexado por id
   const entries = Array.isArray(data.items)
     ? data.items.map((item) => [String(item.id), item])
     : Object.entries(data.items || {});
 
   let count = 0;
+  let field = null;
   for (const [key, item] of entries) {
-    const value = item && (item.market_value ?? item.marketValue);
-    if (!value) continue;
-    market[String((item && item.id) ?? key)] = value;
+    const found = extractMarketValue(item);
+    if (!found) continue;
+    market[String((item && item.id) ?? key)] = found.value;
+    field = field || found.field;
     count++;
   }
-  if (!count) throw new Error(t('torn.noMarketValue'));
+
+  if (!count) {
+    const shape = describeShape(data);
+    throw new Error(t('torn.noMarketValue', shape));
+  }
   saveMarket();
-  return count;
+  return { count, field };
 }
 
 async function cmpLoadPrices() {
   const summary = $('#cmpSummary');
   summary.textContent = t('cmp.loadingPrices');
   try {
-    const count = await loadMarketPrices();
+    const res = await loadMarketPrices();
     renderComparator();
-    summary.innerHTML = t('cmp.pricesUpdated', { n: count });
+    renderItemOptions();
+    summary.innerHTML = t('cmp.pricesUpdated', { n: res.count }) +
+      (res.field && res.field !== 'market_value' ? ' ' + t('cmp.pricesField', { field: res.field }) : '');
   } catch (e) {
     summary.innerHTML = t('cmp.pricesError', { msg: esc(e.message) });
   }
@@ -1633,11 +1773,12 @@ async function suggestPrice() {
   const setStatus = (html) => { $('#apiStatus').innerHTML = html; };
   setStatus(t('api.searching'));
   try {
-    const count = await loadMarketPrices();
+    const res = await loadMarketPrices();
     applyMarketPriceToForm();
     renderComparator();
+    renderItemOptions();
     render();
-    setStatus(t('api.updated', { n: count }));
+    setStatus(t('api.updated', { n: res.count }));
   } catch (e) {
     setStatus(t('api.error', { msg: esc(e.message) }));
   }
@@ -1693,6 +1834,8 @@ function bindEvents() {
         refreshYata(false);
       }
       if (id === 'travelTier' || id === 'travelBook') applyAutoFlight();
+      if (id === 'margin') renderMargin();
+      if (id === 'onlyProfitable') renderItemOptions();
       if (id === 'anchorDate' || id === 'anchorTime') applyItemTimings();   // la franja horaria cambia la duración
       if (id === 'sellPrice') syncSellPriceToMarket();
       if (id === 'capacity' && evt === 'input') capacityTouched = true;
@@ -1707,6 +1850,37 @@ function bindEvents() {
     input.addEventListener('input', () => handler('input'));
     input.addEventListener('change', () => handler('change'));
   }
+
+  $('#travelTierSwitch').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tier-btn');
+    if (!btn) return;
+    $('#travelTier').value = btn.dataset.tier;
+    applyAutoFlight();
+    render();
+  });
+
+  $('#marginRange').addEventListener('input', () => {
+    setMargin(Number($('#marginRange').value));
+    render();                    // arrastrar el slider debe mover la hora de salida
+  });
+  $('#marginChips').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-margin]');
+    if (!btn) return;
+    setMargin(Number(btn.dataset.margin));
+    render();
+  });
+
+  $('#itemPick').addEventListener('change', () => {
+    const value = $('#itemPick').value;
+    if (value === '__custom__') {           // escribir un artículo a mano
+      $('#itemPick').hidden = true;
+      $('#item').hidden = false;
+      $('#item').focus();
+      return;
+    }
+    $('#item').value = value;
+    onItemChanged();
+  });
 
   $('#anchorChips').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-ago]');

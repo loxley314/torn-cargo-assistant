@@ -44,32 +44,50 @@
               <select id="country"></select>
             </label>
             <label><span data-i18n="params.item">Artículo</span>
-              <input id="item" list="itemList" placeholder="Shark Fin" spellcheck="false">
+              <select id="itemPick"></select>
+              <input id="item" list="itemList" placeholder="Shark Fin" spellcheck="false" hidden>
               <datalist id="itemList"></datalist>
             </label>
           </div>
-          <p class="hint" id="yataStatus" data-i18n="yata.checking">Comprobando stock de la comunidad…</p>
-          <button type="button" class="ghost" id="yataRefresh" data-i18n="yata.reload">↻ Recargar stock del país</button>
+          <label class="check">
+            <input id="onlyProfitable" type="checkbox">
+            <span data-i18n="params.onlyProfitable">Solo los rentables</span>
+          </label>
+          <p class="hint" id="yataStatus" data-i18n="yata.checking"></p>
+          <button type="button" class="ghost" id="yataRefresh" data-i18n="yata.reload"></button>
         </fieldset>
 
         <fieldset>
           <legend data-i18n="flight.title">Vuelo</legend>
           <div class="row">
             <label><span data-i18n="flight.tier">Nivel de vuelo</span>
-              <select id="travelTier"></select>
-            </label>
-            <label class="check">
-              <input id="travelBook" type="checkbox">
-              <span data-i18n="flight.book">Con travel book</span>
+              <span class="tier-switch" id="travelTierSwitch" role="radiogroup" data-i18n-aria="flight.tier"></span>
+              <select id="travelTier" hidden></select>
             </label>
           </div>
           <div class="row">
             <label><span data-i18n="flight.duration">Duración del vuelo</span>
               <input id="flight" placeholder="1h29m" spellcheck="false">
             </label>
-            <label><span data-i18n="flight.margin">Llegar antes del restock (min)</span>
-              <input id="margin" type="number" min="0" max="120" step="1">
+            <label class="check">
+              <input id="travelBook" type="checkbox">
+              <span data-i18n="flight.book">Con travel book</span>
             </label>
+          </div>
+          <div class="margin-box">
+            <label class="margin-label"><span data-i18n="flight.margin">Aterrizar antes o después del restock</span>
+              <input id="margin" type="number" min="-120" max="120" step="1" hidden>
+            </label>
+            <input id="marginRange" type="range" min="-30" max="30" step="1" data-i18n-aria="flight.margin">
+            <div class="margin-readout" id="marginReadout"></div>
+            <div class="chips" id="marginChips">
+              <button type="button" data-margin="-10">−10</button>
+              <button type="button" data-margin="-5">−5</button>
+              <button type="button" data-margin="0">0</button>
+              <button type="button" data-margin="2">+2</button>
+              <button type="button" data-margin="5">+5</button>
+              <button type="button" data-margin="10">+10</button>
+            </div>
           </div>
           <p class="hint" id="flightHint"></p>
         </fieldset>
